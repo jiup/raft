@@ -50,7 +50,8 @@ public class ConfigurationHelper {
         ObjectMapper mapper = new ObjectMapper();
         mapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
         mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-        mapper.writerWithDefaultPrettyPrinter().writeValue(new File(DEFAULT_PATH), configuration);
+        mapper.enable(SerializationFeature.INDENT_OUTPUT);
+        mapper.writeValue(new File(DEFAULT_PATH), configuration);
     }
 
     public static boolean validate(Configuration configuration) {
