@@ -1,0 +1,9 @@
+# Created by .ignore support plugin (hsz.mobi)
+.gradle/
+.idea/
+build/
+config.json
+gen/
+gradle/
+out/
+raft.iml

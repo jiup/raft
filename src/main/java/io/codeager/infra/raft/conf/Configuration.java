@@ -17,7 +17,7 @@ import java.util.Map;
  * @since 04/25/2019
  */
 @Experimental(Experimental.Statement.NOT_FULLY_DESIGNED)
-public class Configuration implements Serializable {
+public class    Configuration implements Serializable {
     static class Node {
         public String id;
         public String name;
