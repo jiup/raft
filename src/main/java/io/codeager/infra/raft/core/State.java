@@ -2,7 +2,7 @@ package io.codeager.infra.raft.core;
 
 /**
  * @author Jiupeng Zhang
- * @since 04/24/2019
+ * @since 04/26/2019
  */
-public class Placeholder {
+public enum State {
 }
