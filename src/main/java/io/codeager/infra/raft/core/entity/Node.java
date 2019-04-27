@@ -2,21 +2,18 @@ package io.codeager.infra.raft.core.entity;
 
 
 import io.codeager.infra.raft.core.Client;
+import io.codeager.infra.raft.core.Server;
 import io.codeager.infra.raft.core.State;
 import io.codeager.infra.raft.core.StateMachine;
 import io.codeager.infra.raft.util.timer.RepeatedTimer;
-import io.grpc.vote.Entry;
 import io.grpc.vote.UpdateLogRequest;
 import io.grpc.vote.VoteRequest;
-import io.codeager.infra.raft.core.Server;
 
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-
-import static java.lang.Thread.sleep;
 
 
 /**
@@ -49,14 +46,14 @@ public class Node extends NodeBase {
         this.server = new Server(this);
         this.stateMachine = stateMachine;
         this.neighbours = new ArrayList<>();
-        for (int port:neighbours){
-            this.neighbours.add(new RemoteNode(" "," ",null,new Client("127.0.0.1",port)));
+        for (int port : neighbours) {
+            this.neighbours.add(new RemoteNode(" ", " ", null, new Client("127.0.0.1", port)));
         }
         this.waitTimer = new Timer(this, "waitTimer", 20000) {
 
             @Override
             protected void onTrigger() {
-                this.currentNode.changeState(State.CANDIDATE,"waitTimer");
+                this.currentNode.changeState(State.CANDIDATE, "waitTimer");
 
             }
         };
@@ -68,34 +65,35 @@ public class Node extends NodeBase {
             }
 
         };
-        this.heartTimer = new Timer(this,"heartTimer",new Random().nextInt(5000)) {
+        this.heartTimer = new Timer(this, "heartTimer", new Random().nextInt(5000)) {
             @Override
             protected void onTrigger() {
                 this.currentNode.sendHeart();
             }
         };
     }
-    private  void sendHeart(){
+
+    private void sendHeart() {
         UpdateLogRequest updateLogRequest = UpdateLogRequest.newBuilder().setTerm(this.getStateMachine().getTerm()).setIndex(this.getStateMachine().getIndex()).build();
-        for(RemoteNode neighbour:neighbours){
+        for (RemoteNode neighbour : neighbours) {
             neighbour.updateLog(updateLogRequest);
         }
     }
 
     synchronized private void checkVoteResult() {
-        if (this.getStateMachine().getVotes() > (this.neighbours.size()) / 2){
-            changeState(State.LEADER,"voteTimer");
-        }else{
-            changeState(State.FOLLOWER,"voteTimer");
+        if (this.getStateMachine().getVotes() > (this.neighbours.size()) / 2) {
+            changeState(State.LEADER, "voteTimer");
+        } else {
+            changeState(State.FOLLOWER, "voteTimer");
         }
 
     }
 
-    private void changeState(State state,String timerName) {
+    private void changeState(State state, String timerName) {
         this.getStateMachine().setState(state);
-        if(timerName.equals("waitTimer")){
+        if (timerName.equals("waitTimer")) {
             this.waitTimer.stop();
-        }else if(timerName.equals("voteTimer")) {
+        } else if (timerName.equals("voteTimer")) {
             this.voteTimer.stop();
         }
 
@@ -124,8 +122,8 @@ public class Node extends NodeBase {
 
     }
 
-    public void start(){
-        this.stateConvert = new StateConvert(this.getStateMachine(),this);
+    public void start() {
+        this.stateConvert = new StateConvert(this.getStateMachine(), this);
         this.serverContainer = new ServerContainer(this.server);
         Thread thread1 = new Thread(this.serverContainer);
         Thread thread2 = new Thread(this.stateConvert);
@@ -140,9 +138,9 @@ public class Node extends NodeBase {
 
     }
 
-    public static void main(String...args) throws MalformedURLException {
-        int[] ports = {5001,5002,5003};
-        Node node1 = new Node(" ","no1",new URL("FTP","127.0.0.1",5001," "),new StateMachine(),new int[]{5004,5002,5003});
+    public static void main(String... args) throws MalformedURLException {
+        int[] ports = {5001, 5002, 5003};
+        Node node1 = new Node(" ", "no1", new URL("FTP", "127.0.0.1", 5001, " "), new StateMachine(), new int[]{5004, 5002, 5003});
         node1.start();
 //        Node node2 = new Node(" ","no1",new URL("FTP","127.0.0.1",5002," "),new StateMachine(),new int[]{5001,5004,5003});
 //        node2.start();
@@ -153,19 +151,22 @@ public class Node extends NodeBase {
 
 
     }
-    class ServerContainer implements Runnable{
+
+    class ServerContainer implements Runnable {
         private Server server;
-        public ServerContainer(Server server){
+
+        public ServerContainer(Server server) {
             this.server = server;
         }
+
         @Override
         public void run() {
             try {
                 server.start();
                 server.blockUntilShutdown();
-            }catch (Exception e){
+            } catch (Exception e) {
                 System.out.println(e.getMessage());
-            }finally {
+            } finally {
                 server.stop();
             }
 
@@ -188,7 +189,7 @@ public class Node extends NodeBase {
                         System.err.println("state FOLLOWER");
 //                      //Todo
                         node.waitTimer.start();
-                        synchronized (this){
+                        synchronized (this) {
                             try {
                                 this.wait();
                             } catch (InterruptedException e) {

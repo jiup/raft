@@ -1,10 +1,6 @@
 package io.codeager.infra.raft.core;
 
-import com.google.common.util.concurrent.AbstractScheduledService;
 import io.codeager.infra.raft.Experimental;
-import io.codeager.infra.raft.util.timer.RepeatedTimer;
-
-import java.util.Random;
 
 /**
  * @author Jiupeng Zhang
@@ -51,7 +47,6 @@ public class StateMachine {
     }
 
 
-
     public StateMachine() {
         this.state = State.FOLLOWER;
         this.term = 1;
@@ -67,10 +62,12 @@ public class StateMachine {
     public void setVotes(int votes) {
         this.votes = votes;
     }
-    public  void addVotes(){
+
+    public void addVotes() {
         this.votes++;
     }
-    public  void addTerm(){
+
+    public void addTerm() {
         this.term++;
     }
 }

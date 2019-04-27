@@ -4,7 +4,6 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.vote.*;
 
-
 import java.util.concurrent.TimeUnit;
 
 public class Client {
@@ -15,26 +14,29 @@ public class Client {
         this(ManagedChannelBuilder.forAddress(host, port).usePlaintext(true)
                 .build());
     }
+
     Client(ManagedChannel channel) {
         this.channel = channel;
         blockingStub = GreeterGrpc.newBlockingStub(channel);
     }
 
-    public boolean askForVote(VoteRequest voteRequest){
+    public boolean askForVote(VoteRequest voteRequest) {
         VoteReply voteReply = blockingStub.askForVote(voteRequest);
         return voteReply.getStatus();
     }
-    public boolean updateLog(UpdateLogRequest updateLogRequest){
-        UpdateLogReply updateLogReply =blockingStub.updateLog(updateLogRequest);
+
+    public boolean updateLog(UpdateLogRequest updateLogRequest) {
+        UpdateLogReply updateLogReply = blockingStub.updateLog(updateLogRequest);
         return updateLogReply.getStatus();
     }
 
     public void shutdown() throws InterruptedException {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }
-    public static void main(String...args)  {
+
+    public static void main(String... args) {
         String name = "zhangyu";
-        Client client = new Client("127.0.0.1",5000);
+        Client client = new Client("127.0.0.1", 5000);
         VoteRequest voteRequest = VoteRequest.newBuilder().setPort(5000).setTerm(2).build();
         boolean b = client.askForVote(voteRequest);
         System.out.println(b);

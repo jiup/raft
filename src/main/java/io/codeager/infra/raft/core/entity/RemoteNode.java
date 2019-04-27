@@ -13,17 +13,18 @@ import java.net.URL;
 public class RemoteNode extends NodeBase {
     private Client client;
 
-    public RemoteNode(String id, String name, URL url,Client client)
-    {
+    public RemoteNode(String id, String name, URL url, Client client) {
         super(id, name, url);
         this.client = client;
 
 
     }
-    public boolean askForVote(VoteRequest voteRequest){
+
+    public boolean askForVote(VoteRequest voteRequest) {
         return this.client.askForVote(voteRequest);
     }
-    public boolean updateLog(UpdateLogRequest request){
+
+    public boolean updateLog(UpdateLogRequest request) {
         return this.client.updateLog(request);
     }
 }
