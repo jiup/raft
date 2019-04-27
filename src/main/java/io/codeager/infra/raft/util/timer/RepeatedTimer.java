@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -23,18 +22,16 @@ public abstract class RepeatedTimer {
     private final String name;
     private final Timer timer;
     private final long initTimeout;
-    private AtomicLong prevTimeout;
-    protected AtomicLong counter;
+    private long prevTimeout;
     private volatile boolean running;
     private volatile boolean destroyed;
     private TimerTask timerTask;
+    protected long counter;
 
     protected RepeatedTimer(String name, long timeoutInMillis) {
         this.name = name;
         this.timer = new Timer(name);
         this.initTimeout = timeoutInMillis;
-        this.prevTimeout = new AtomicLong();
-        this.counter = new AtomicLong();
         this.running = false;
         this.destroyed = false;
     }
@@ -95,7 +92,7 @@ public abstract class RepeatedTimer {
         lock.lock();
         try {
             if (!running) return;
-            this.prevTimeout.set(timeout);
+            prevTimeout = 0;
             reschedule();
         } finally {
             lock.unlock();
@@ -121,10 +118,7 @@ public abstract class RepeatedTimer {
         if (timerTask != null) {
             timerTask.cancel();
         }
-        timer.schedule(
-                timerTask = newTimerTask(),
-                prevTimeout.getAndSet(updateTimeout(initTimeout, prevTimeout.get()))
-        );
+        timer.schedule(timerTask = newTimerTask(), prevTimeout = updateTimeout(initTimeout, prevTimeout));
     }
 
     private TimerTask newTimerTask() {
@@ -135,7 +129,7 @@ public abstract class RepeatedTimer {
                 try {
                     try {
                         onTrigger();
-                        counter.incrementAndGet();
+                        counter++;
                     } catch (Throwable throwable) {
                         LOG.error("exception caught: {}", throwable.getMessage());
                         // throwable.printStackTrace();
@@ -163,11 +157,11 @@ public abstract class RepeatedTimer {
     }
 
     public long getTriggerCount() {
-        return counter.get();
+        return counter;
     }
 
     public long getPrevTimeout() {
-        return prevTimeout.get();
+        return prevTimeout;
     }
 
     public long getInitTimeout() {
