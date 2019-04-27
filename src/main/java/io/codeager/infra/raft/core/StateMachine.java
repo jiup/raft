@@ -2,7 +2,9 @@ package io.codeager.infra.raft.core;
 
 import com.google.common.util.concurrent.AbstractScheduledService;
 import io.codeager.infra.raft.Experimental;
-import io.codeager.infra.raft.util.TimerUtil;
+import io.codeager.infra.raft.util.timer.RepeatedTimer;
+
+import java.util.Random;
 
 /**
  * @author Jiupeng Zhang
@@ -12,8 +14,16 @@ import io.codeager.infra.raft.util.TimerUtil;
 public class StateMachine {
     private State state;
     private int term;
-    private int delay;
-    private TimerUtil.Scheduler scheduler;
+    public int votes;
+    public int index;
+
+    public int getIndex() {
+        return index;
+    }
+
+    public void setIndex(int index) {
+        this.index = index;
+    }
 
     public State getState() {
         return state;
@@ -31,22 +41,26 @@ public class StateMachine {
         this.term = term;
     }
 
-    public TimerUtil.Scheduler getScheduler() {
-        return scheduler;
-    }
 
-    public void setScheduler(TimerUtil.Scheduler scheduler) {
-        this.scheduler = scheduler;
-    }
 
     public StateMachine() {
+        this.state = State.FOLLOWER;
+        this.term = 1;
+        this.votes = 0;
+
     }
 
-    public int getDelay() {
-        return delay;
+    public int getVotes() {
+        return votes;
     }
 
-    public void setDelay(int delay) {
-        this.delay = delay;
+    public void setVotes(int votes) {
+        this.votes = votes;
+    }
+    public  void addVotes(){
+        this.votes++;
+    }
+    public  void addTerm(){
+        this.term++;
     }
 }

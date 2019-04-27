@@ -12,7 +12,7 @@ import java.io.IOException;
 public class Server extends GreeterGrpc.GreeterImplBase{
     private io.grpc.Server server;
     private Node node;
-    Server(Node node){
+    public Server(Node node){
         this.node = node;
     }
     public void start() throws IOException {
@@ -28,6 +28,7 @@ public class Server extends GreeterGrpc.GreeterImplBase{
     }
     @Override
     public void askForVote(VoteRequest request, StreamObserver<VoteReply> responseObserver) {
+        node.waitTimer.reset(5000);
         VoteReply voteReply = null;
         if (request.getTerm()>=this.node.getStateMachine().getTerm()){
             voteReply = VoteReply.newBuilder().setStatus(true).build();
@@ -41,6 +42,7 @@ public class Server extends GreeterGrpc.GreeterImplBase{
 
     @Override
     public void updateLog(UpdateLogRequest request, StreamObserver<UpdateLogReply> responseObserver) {
+        node.waitTimer.reset(5000);
         boolean checkState = this.node.checkLog(request.getIndex(),request.getTerm());
         UpdateLogReply updateLogReply = null;
         if (checkState){
@@ -52,6 +54,7 @@ public class Server extends GreeterGrpc.GreeterImplBase{
         responseObserver.onNext(updateLogReply);
         responseObserver.onCompleted();
     }
+
 
 
     public static void main(String...args){

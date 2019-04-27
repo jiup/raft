@@ -1,6 +1,7 @@
 package io.codeager.infra.raft.core.entity;
 
 import io.codeager.infra.raft.core.Client;
+import io.grpc.vote.UpdateLogRequest;
 import io.grpc.vote.VoteRequest;
 
 import java.net.URL;
@@ -21,5 +22,8 @@ public class RemoteNode extends NodeBase {
     }
     public boolean askForVote(VoteRequest voteRequest){
         return this.client.askForVote(voteRequest);
+    }
+    public boolean updateLog(UpdateLogRequest request){
+        return this.client.updateLog(request);
     }
 }

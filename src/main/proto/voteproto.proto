@@ -45,14 +45,6 @@ message UpdateLogReply{
     bool status = 1;
 }
 
-
-
-
-
-
-
-
-
 message VoteRequest{
     int32 port = 1;
     int32 term  = 2;

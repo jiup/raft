@@ -2,9 +2,7 @@ package io.codeager.infra.raft.core;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import io.grpc.vote.GreeterGrpc;
-import io.grpc.vote.VoteReply;
-import io.grpc.vote.VoteRequest;
+import io.grpc.vote.*;
 
 
 import java.util.concurrent.TimeUnit;
@@ -25,6 +23,10 @@ public class Client {
     public boolean askForVote(VoteRequest voteRequest){
         VoteReply voteReply = blockingStub.askForVote(voteRequest);
         return voteReply.getStatus();
+    }
+    public boolean updateLog(UpdateLogRequest updateLogRequest){
+        UpdateLogReply updateLogReply =blockingStub.updateLog(updateLogRequest);
+        return updateLogReply.getStatus();
     }
 
     public void shutdown() throws InterruptedException {
