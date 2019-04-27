@@ -1,4 +1,4 @@
-package io.codeager.infra.raft.core.entity;
+package io.codeager.infra.raft.core;
 
 import org.apache.commons.lang.builder.ToStringBuilder;
 

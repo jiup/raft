@@ -1,6 +1,6 @@
-package io.codeager.infra.raft.core;
+package io.codeager.infra.raft.core.rpc;
 
-import io.codeager.infra.raft.core.entity.Node;
+import io.codeager.infra.raft.core.LocalNode;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.vote.*;
@@ -10,9 +10,9 @@ import java.io.IOException;
 
 public class Server extends GreeterGrpc.GreeterImplBase {
     private io.grpc.Server server;
-    private Node node;
+    private LocalNode node;
 
-    public Server(Node node) {
+    public Server(LocalNode node) {
         this.node = node;
     }
 
@@ -33,13 +33,14 @@ public class Server extends GreeterGrpc.GreeterImplBase {
     public void askForVote(VoteRequest request, StreamObserver<VoteReply> responseObserver) {
         node.waitTimer.reset(5000);
         VoteReply voteReply;
-        if (request.getTerm() >= this.node.getStateMachine().getTerm() && this.node.getStateMachine().getLastVoteTerm() < request.getTerm()) {
-            voteReply = VoteReply.newBuilder().setStatus(true).build();
-            this.node.getStateMachine().setState(State.FOLLOWER);
-        } else {
-            voteReply = VoteReply.newBuilder().setStatus(false).build();
-        }
-        responseObserver.onNext(voteReply);
+        // todo: move the code below inside the node itself
+//        if (request.getTerm() >= this.node.getStateMachine().getState().getTerm() && this.node.getStateMachine().getState().getLastVoteTerm() < request.getTerm()) {
+//            voteReply = VoteReply.newBuilder().setStatus(true).build();
+//            this.node.getStateMachine().setRole(StateMachine.Role.FOLLOWER);
+//        } else {
+//            voteReply = VoteReply.newBuilder().setStatus(false).build();
+//        }
+//        responseObserver.onNext(voteReply);
         responseObserver.onCompleted();
     }
 
@@ -60,7 +61,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
 
     public static void main(String... args) {
-//        final Server server = new Server(new State(0,5000,2,1,1000));
+//        final Server server = new Server(new Role(0,5000,2,1,1000));
 //        try {
 //            server.start();
 //            server.blockUntilShutdown();

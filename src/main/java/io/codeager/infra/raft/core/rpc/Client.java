@@ -1,4 +1,4 @@
-package io.codeager.infra.raft.core;
+package io.codeager.infra.raft.core.rpc;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;

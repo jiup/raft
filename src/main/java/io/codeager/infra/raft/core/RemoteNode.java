@@ -1,6 +1,6 @@
-package io.codeager.infra.raft.core.entity;
+package io.codeager.infra.raft.core;
 
-import io.codeager.infra.raft.core.Client;
+import io.codeager.infra.raft.core.rpc.Client;
 import io.grpc.vote.UpdateLogRequest;
 import io.grpc.vote.VoteRequest;
 
