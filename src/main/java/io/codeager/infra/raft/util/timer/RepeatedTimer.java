@@ -14,7 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Jiupeng Zhang
  * @since 04/26/2019
  */
-@Experimental({Experimental.Statement.NOT_FULLY_DESIGNED, Experimental.Statement.TODO_TEST})
+@Experimental(Experimental.Statement.TODO_TEST)
 public abstract class RepeatedTimer {
     public static final Logger LOG = LoggerFactory.getLogger(RepeatedTimer.class);
 
@@ -32,6 +32,7 @@ public abstract class RepeatedTimer {
         this.name = name;
         this.timer = new Timer(name);
         this.initTimeout = timeoutInMillis;
+        this.prevTimeout = timeoutInMillis;
         this.running = false;
         this.destroyed = false;
     }
@@ -41,13 +42,17 @@ public abstract class RepeatedTimer {
     }
 
     protected long updateTimeout(long initTimeout, long prevTimeout) {
-        return updateTimeout(initTimeout);
+        return updateTimeout(prevTimeout);
     }
 
     protected abstract void onTrigger();
 
     protected void onDestroy() {
         // do nothing by default
+    }
+
+    protected void onException(Throwable throwable) {
+        throwable.printStackTrace();
     }
 
     public void start() {
@@ -61,6 +66,7 @@ public abstract class RepeatedTimer {
             reschedule();
         } finally {
             lock.unlock();
+            LOG.debug("[{}] started", name);
         }
     }
 
@@ -75,6 +81,7 @@ public abstract class RepeatedTimer {
             if (timerTask != null) {
                 timerTask.cancel();
                 timerTask = null;
+                LOG.debug("[{}] stopped", name);
             }
         } finally {
             lock.unlock();
@@ -92,7 +99,8 @@ public abstract class RepeatedTimer {
         lock.lock();
         try {
             if (!running) return;
-            prevTimeout = 0;
+            LOG.debug("[{}] reset", name);
+            prevTimeout = timeout;
             reschedule();
         } finally {
             lock.unlock();
@@ -111,6 +119,7 @@ public abstract class RepeatedTimer {
         } finally {
             lock.unlock();
         }
+        LOG.debug("[{}] on destroy", name);
         onDestroy();
     }
 
@@ -128,11 +137,13 @@ public abstract class RepeatedTimer {
                 lock.lock();
                 try {
                     try {
-                        onTrigger();
                         counter++;
+                        LOG.debug("[{}] on trigger event-{}", name, counter);
+                        onTrigger();
                     } catch (Throwable throwable) {
-                        LOG.error("exception caught: {}", throwable.getMessage());
-                        // throwable.printStackTrace();
+                        LOG.warn("[{}] caught exception: {}", name, throwable.getClass().getSimpleName());
+                        LOG.debug("[{}] on exception", name);
+                        onException(throwable);
                     }
                     if (!destroyed && running) {
                         reschedule();
