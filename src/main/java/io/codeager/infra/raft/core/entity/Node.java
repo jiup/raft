@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import static java.lang.Thread.sleep;
+
 
 /**
  * @author Jiupeng Zhang
@@ -50,7 +52,7 @@ public class Node extends NodeBase {
         for (int port:neighbours){
             this.neighbours.add(new RemoteNode(" "," ",null,new Client("127.0.0.1",port)));
         }
-        this.waitTimer = new Timer(this, "waitTimer", 5000000) {
+        this.waitTimer = new Timer(this, "waitTimer", 20000) {
 
             @Override
             protected void onTrigger() {
@@ -64,6 +66,7 @@ public class Node extends NodeBase {
             protected void onTrigger() {
                 this.currentNode.checkVoteResult();
             }
+
         };
         this.heartTimer = new Timer(this,"heartTimer",new Random().nextInt(5000)) {
             @Override
@@ -75,16 +78,15 @@ public class Node extends NodeBase {
     private  void sendHeart(){
         UpdateLogRequest updateLogRequest = UpdateLogRequest.newBuilder().setTerm(this.getStateMachine().getTerm()).setIndex(this.getStateMachine().getIndex()).build();
         for(RemoteNode neighbour:neighbours){
-            neighbour.
+            neighbour.updateLog(updateLogRequest);
         }
     }
 
-    private void checkVoteResult() {
+    synchronized private void checkVoteResult() {
         if (this.getStateMachine().getVotes() > (this.neighbours.size()) / 2){
             changeState(State.LEADER,"voteTimer");
         }else{
-
-            this.stateConvert.notifyAll();
+            changeState(State.FOLLOWER,"voteTimer");
         }
 
     }
@@ -96,8 +98,11 @@ public class Node extends NodeBase {
         }else if(timerName.equals("voteTimer")) {
             this.voteTimer.stop();
         }
+
+        synchronized (this.stateConvert) {
+            this.stateConvert.notifyAll();
+        }
         System.err.println("notifyAll");
-        this.stateConvert.notifyAll();
 
     }
 
@@ -136,15 +141,15 @@ public class Node extends NodeBase {
     }
 
     public static void main(String...args) throws MalformedURLException {
-//        int[] ports = {5001,5002,5003};
-//        Node node1 = new Node(" ","no1",new URL("FTP","127.0.0.1",5001," "),new StateMachine(),new int[]{5004,5002,5003});
-//        node1.start();
+        int[] ports = {5001,5002,5003};
+        Node node1 = new Node(" ","no1",new URL("FTP","127.0.0.1",5001," "),new StateMachine(),new int[]{5004,5002,5003});
+        node1.start();
 //        Node node2 = new Node(" ","no1",new URL("FTP","127.0.0.1",5002," "),new StateMachine(),new int[]{5001,5004,5003});
 //        node2.start();
 //        Node node3 = new Node(" ","no1",new URL("FTP","127.0.0.1",5003," "),new StateMachine(),new int[]{5001,5002,5004});
 //        node3.start();
-        Node node4 = new Node(" ","no1",new URL("FTP","127.0.0.1",5004," "),new StateMachine(),new int[]{5001,5002,5003});
-        node4.start();
+//        Node node4 = new Node(" ","no1",new URL("FTP","127.0.0.1",5004," "),new StateMachine(),new int[]{5001,5002,5003});
+//        node4.start();
 
 
     }
@@ -169,11 +174,9 @@ public class Node extends NodeBase {
 
 
     class StateConvert implements Runnable {
-//        private StateMachine stateMachine;
         private Node node;
 
         public StateConvert(StateMachine stateMachine, Node node) {
-//            this.stateMachine = stateMachine;
             this.node = node;
         }
 
@@ -203,25 +206,22 @@ public class Node extends NodeBase {
                                 this.node.getStateMachine().addVotes();
                             }
                         }
-                        if (this.node.getStateMachine().getVotes() > (this.node.neighbours.size() / 2)) {
-                            this.node.stateMachine.setState(State.LEADER);
-                        }
-                        try {
-                            this.wait();
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
+//                        if (this.node.getStateMachine().getVotes() > (this.node.neighbours.size() / 2)) {
+//                            this.node.stateMachine.setState(State.LEADER);
+//                        }
+                        this.node.checkVoteResult();
+//                        synchronized (this){
+//                            try {
+//                                this.wait();
+//                            } catch (InterruptedException e) {
+//                                e.printStackTrace();
+//                            }
+//                        }
                         this.node.getStateMachine().addTerm();
                         break;
                     case LEADER:
                         System.err.println("state Leader");
-
-//                        this.state.time= new AtomicInteger();
-//                        this.state.time.set(new Random().nextInt(5000));
-//                        while(this.state.time.get()>0){
-//                            this.state.time.incrementAndGet();
-//                        }
-//                        this.state.state = 2;
+                        this.node.heartTimer.start();
                         break;
                 }
             }

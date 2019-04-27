@@ -16,6 +16,15 @@ public class StateMachine {
     private int term;
     public int votes;
     public int index;
+    public int lastVoteTerm;
+
+    public int getLastVoteTerm() {
+        return lastVoteTerm;
+    }
+
+    public void setLastVoteTerm(int lastVoteTerm) {
+        this.lastVoteTerm = lastVoteTerm;
+    }
 
     public int getIndex() {
         return index;
@@ -47,6 +56,7 @@ public class StateMachine {
         this.state = State.FOLLOWER;
         this.term = 1;
         this.votes = 0;
+        this.lastVoteTerm = 0;
 
     }
 

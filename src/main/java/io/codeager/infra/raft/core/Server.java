@@ -30,11 +30,12 @@ public class Server extends GreeterGrpc.GreeterImplBase{
     public void askForVote(VoteRequest request, StreamObserver<VoteReply> responseObserver) {
         node.waitTimer.reset(5000);
         VoteReply voteReply = null;
-        if (request.getTerm()>=this.node.getStateMachine().getTerm()){
+        if (request.getTerm()>=this.node.getStateMachine().getTerm() && this.node.getStateMachine().getLastVoteTerm()<request.getTerm()){
             voteReply = VoteReply.newBuilder().setStatus(true).build();
             this.node.getStateMachine().setState(State.FOLLOWER);
+
         }else{
-            voteReply = VoteReply.newBuilder().setStatus(true).build();
+            voteReply = VoteReply.newBuilder().setStatus(false).build();
         }
         responseObserver.onNext(voteReply);
         responseObserver.onCompleted();
