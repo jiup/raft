@@ -1,6 +1,7 @@
 package io.codeager.infra.raft.core.rpc;
 
 import io.codeager.infra.raft.core.LocalNode;
+import io.codeager.infra.raft.core.StateMachine;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.vote.*;
@@ -31,24 +32,18 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void askForVote(VoteRequest request, StreamObserver<VoteReply> responseObserver) {
-        node.waitTimer.reset(5000);
-        VoteReply voteReply;
-        // todo: move the code below inside the node itself
-//        if (request.getTerm() >= this.node.getStateMachine().getState().getTerm() && this.node.getStateMachine().getState().getLastVoteTerm() < request.getTerm()) {
-//            voteReply = VoteReply.newBuilder().setStatus(true).build();
-//            this.node.getStateMachine().setRole(StateMachine.Role.FOLLOWER);
-//        } else {
-//            voteReply = VoteReply.newBuilder().setStatus(false).build();
-//        }
-//        responseObserver.onNext(voteReply);
+        node.resetWaitTimer();
+        boolean status = this.node.handleVoteRequest(request.getTerm());
+        VoteReply voteReply = VoteReply.newBuilder().setStatus(status).build();
+        responseObserver.onNext(voteReply);
         responseObserver.onCompleted();
     }
 
     @Override
     public void updateLog(UpdateLogRequest request, StreamObserver<UpdateLogReply> responseObserver) {
-        node.waitTimer.reset(5000);
-        boolean checkState = this.node.checkLog(request.getIndex(), request.getTerm());
-        UpdateLogReply updateLogReply = null;
+        node.resetWaitTimer();
+        boolean checkState = this.node.checkLog(request.getIndex(), request.getTerm(), request.getIp());
+        UpdateLogReply updateLogReply;
         if (checkState) {
             this.node.appendEntry(request.getIndex(), request.getTerm(), request.getEntry());
             updateLogReply = UpdateLogReply.newBuilder().setStatus(true).build();
@@ -59,6 +54,30 @@ public class Server extends GreeterGrpc.GreeterImplBase {
         responseObserver.onCompleted();
     }
 
+    @Override
+    public void appendLog(UpdateLogRequest request, StreamObserver<UpdateLogReply> responseObserver) {
+        node.resetWaitTimer();
+        this.node.appendEntry(request.getIndex(), request.getTerm(), request.getEntry());
+        UpdateLogReply updateLogReply;
+        updateLogReply = UpdateLogReply.newBuilder().setStatus(true).build();
+        responseObserver.onNext(updateLogReply);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void store(StoreRequest request, StreamObserver<StoreResponse> responseObserver) {
+        StoreResponse storeResponse;
+        boolean status;
+        if (this.node.getStateMachine().getState().role == StateMachine.Role.LEADER) {
+            status = this.node.store(request.getEntry());
+            storeResponse = StoreResponse.newBuilder().setStatus(status).build();
+        } else {
+            status = this.node.leader.store(request);
+            storeResponse = StoreResponse.newBuilder().setStatus(status).build();
+        }
+        responseObserver.onNext(storeResponse);
+        responseObserver.onCompleted();
+    }
 
     public static void main(String... args) {
 //        final Server server = new Server(new Role(0,5000,2,1,1000));

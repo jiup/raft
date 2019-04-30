@@ -30,6 +30,15 @@ public class Client {
         return updateLogReply.getStatus();
     }
 
+    public void appendEntry(UpdateLogRequest updateLogRequest) {
+        UpdateLogReply updateLogReply = blockingStub.appendLog(updateLogRequest);
+    }
+
+    public boolean store(StoreRequest storeRequest) {
+        StoreResponse storeResponse = blockingStub.store(storeRequest);
+        return storeResponse.getStatus();
+    }
+
     public void shutdown() throws InterruptedException {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }
