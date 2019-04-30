@@ -1,8 +1,8 @@
 package io.codeager.infra.raft.core;
 
+import io.codeager.infra.raft.core.entity.Endpoint;
 import org.apache.commons.lang.builder.ToStringBuilder;
-
-import java.net.URL;
+import org.apache.commons.lang.builder.ToStringStyle;
 
 /**
  * @author Jiupeng Zhang
@@ -11,44 +11,55 @@ import java.net.URL;
 public abstract class NodeBase {
     private String id;
     private String name;
-    private URL url;
+    private Endpoint endpoint;
 
-    public NodeBase(String id, String name, URL url) {
+    public NodeBase(String id) {
+        this(id, Endpoint.DEFAULT);
+    }
+
+    public NodeBase(String id, Endpoint endpoint) {
+        this(id, "raft-" + id, endpoint);
+    }
+
+    public NodeBase(String id, String name, Endpoint endpoint) {
         this.id = id;
         this.name = name;
-        this.url = url;
+        this.endpoint = endpoint;
     }
 
     public String getId() {
         return id;
     }
 
-    public void setId(String id) {
+    public NodeBase setId(String id) {
         this.id = id;
+        return this;
     }
 
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
+    public NodeBase setName(String name) {
         this.name = name;
+        return this;
     }
 
-    public URL getUrl() {
-        return url;
+    public Endpoint getEndpoint() {
+        return endpoint;
     }
 
-    public void setUrl(URL url) {
-        this.url = url;
+    public NodeBase setEndpoint(Endpoint endpoint) {
+        this.endpoint = endpoint;
+        return this;
     }
 
     @Override
     public String toString() {
-        return new ToStringBuilder(this)
+        return new ToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE)
                 .append("id", id)
                 .append("name", name)
-                .append("url", url)
+                .append("endpoint", endpoint)
                 .toString();
     }
 }

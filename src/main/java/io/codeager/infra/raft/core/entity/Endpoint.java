@@ -8,7 +8,7 @@ import org.apache.commons.lang.builder.ToStringStyle;
  * @since 04/29/2019
  */
 public final class Endpoint {
-    private static final Endpoint DEFAULT = Endpoint.from("0.0.0.0", 9990);
+    public static final Endpoint DEFAULT = Endpoint.from("0.0.0.0", 9990);
 
     private String host;
     private int port;
