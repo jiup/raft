@@ -64,9 +64,9 @@ public abstract class RepeatedTimer {
             if (running) return;
             running = true;
             reschedule();
+            LOG.debug("[{}] started", name);
         } finally {
             lock.unlock();
-            LOG.debug("[{}] started", name);
         }
     }
 
@@ -98,9 +98,9 @@ public abstract class RepeatedTimer {
 
         lock.lock();
         try {
-            if (!running) return;
             LOG.debug("[{}] reset", name);
             prevTimeout = timeout;
+            if (!running) return;
             reschedule();
         } finally {
             lock.unlock();
