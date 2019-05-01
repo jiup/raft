@@ -18,7 +18,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
     }
 
     public void start() throws IOException {
-        server = ServerBuilder.forPort(this.node.getUrl().getPort()).addService(this).build().start();
+        server = ServerBuilder.forPort(this.node.getEndpoint().getPort()).addService(this).build().start();
     }
 
     public void blockUntilShutdown() throws InterruptedException {
@@ -80,13 +80,6 @@ public class Server extends GreeterGrpc.GreeterImplBase {
     }
 
     public static void main(String... args) {
-//        final Server server = new Server(new Role(0,5000,2,1,1000));
-//        try {
-//            server.start();
-//            server.blockUntilShutdown();
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
 
     }
 }

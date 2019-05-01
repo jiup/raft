@@ -2,15 +2,16 @@ package io.codeager.infra.raft.core;
 
 
 import io.codeager.infra.raft.conf.Configuration;
+import io.codeager.infra.raft.core.entity.Endpoint;
 import io.codeager.infra.raft.core.rpc.Client;
 import io.codeager.infra.raft.core.rpc.Server;
 import io.codeager.infra.raft.core.util.NodeTimer;
 import io.grpc.vote.Entry;
+import io.grpc.vote.StoreRequest;
 import io.grpc.vote.UpdateLogRequest;
 import io.grpc.vote.VoteRequest;
 
 import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -30,8 +31,8 @@ public class LocalNode extends NodeBase {
     public NodeTimer heartbeatTimer;
     public RemoteNode leader;
 
-    public LocalNode(String id, String name, URL url, int[] peers) {
-        super(id, name, url);
+    public LocalNode(String id, String name, Endpoint endpoint, int[] peers) {
+        super(id, name, endpoint);
         this.server = new Server(this);
         this.peers = new ArrayList<>();
         for (int port : peers) {
@@ -57,6 +58,7 @@ public class LocalNode extends NodeBase {
             }
         };
     }
+
 
     public RemoteNode getLeader() {
         return leader;
@@ -222,13 +224,13 @@ public class LocalNode extends NodeBase {
 //        node2.setStateMachine(stateMachine2);
 //        node2.start(stateMachine2);
 //
-        LocalNode node3 = new LocalNode(" ", "no3", new URL("FTP", "127.0.0.1", 5003, " "), new int[]{5002, 5001});
+        LocalNode node3 = new LocalNode(" ", "no3", Endpoint.from("127.0.0.1", 5003), new int[]{5002, 5001});
         StateMachine stateMachine3 = new StateMachine(node3);
         node3.setStateMachine(stateMachine3);
         node3.start(stateMachine3);
 //
-//        Client client = new Client("127.0.0.1",5001);
-//        client.store(StoreRequest.newBuilder().setEntry(Entry.newBuilder().setKey("1").setValue("1").build()).build());
+        Client client = new Client("127.0.0.1", 5001);
+        client.store(StoreRequest.newBuilder().setEntry(Entry.newBuilder().setKey("1").setValue("1").build()).build());
 
     }
 

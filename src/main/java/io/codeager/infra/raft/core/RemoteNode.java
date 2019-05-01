@@ -1,11 +1,10 @@
 package io.codeager.infra.raft.core;
 
+import io.codeager.infra.raft.core.entity.Endpoint;
 import io.codeager.infra.raft.core.rpc.Client;
 import io.grpc.vote.StoreRequest;
 import io.grpc.vote.UpdateLogRequest;
 import io.grpc.vote.VoteRequest;
-
-import java.net.URL;
 
 /**
  * @author Jiupeng Zhang
@@ -14,8 +13,9 @@ import java.net.URL;
 public class RemoteNode extends NodeBase {
     private Client client;
     private int index;
-    public RemoteNode(String id, String name, URL url, Client client) {
-        super(id, name, url);
+
+    public RemoteNode(String id, String name, Endpoint endpoint, Client client) {
+        super(id, name, endpoint);
         this.client = client;
         this.index = 0;
 
