@@ -5,35 +5,35 @@ import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import io.codeager.infra.raft.Experimental;
+import io.codeager.infra.raft.core.entity.Endpoint;
 import org.apache.commons.lang.RandomStringUtils;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * @author Jiupeng Zhang
  * @since 04/25/2019
  */
-@Experimental(Experimental.Statement.NOT_FULLY_DESIGNED)
 public class Configuration implements Serializable {
-    static class Node {
-        public String id;
-        public String name;
-        public String url;
+    static class LocalNode {
+        public String id = "undefined";
+        public String name = "undefined";
+        public Endpoint endpoint = Endpoint.DEFAULT;
+        public long waitTimeout = 40_000; // 40 seconds
+        public long voteTimeout = 10_000; // 10 seconds
+        public long heartbeatTimeout = 10_000; // 10 seconds
     }
 
-    static class Controller {
-        private enum AccessMode {
-            DEV, PROD
-        }
-
-        public AccessMode mode = AccessMode.DEV;
+    static class NodeObserver {
+        public int maxClient = 1;
+        public Endpoint endpoint = Endpoint.of(36507);
     }
 
     static class Binding {
-        public Class core = Configuration.class;
+        public Class cli = Configuration.class;
     }
 
     static class Logging {
@@ -41,22 +41,15 @@ public class Configuration implements Serializable {
         public String errPath = "/path/to/raft.err";
     }
 
-    public Map<String, Node> registry = new HashMap<String, Node>() {{
-        // field for test only
-        put("raft-node-1", new Node());
-        put("raft-node-2", new Node());
-        put("raft-node-3", new Node());
-        put("raft-node-4", new Node());
-        put("raft-node-5", new Node());
-    }};
-    public Node origin = new Node() {{
-        // field for test only
+    public int maxClient = 1;
+    public LocalNode origin = new LocalNode() {{
         id = RandomStringUtils.randomAlphanumeric(8).toLowerCase();
-        name = "raft-node-".concat(id);
+        name = "node-".concat(id);
     }};
-    public Controller controller = new Controller();
-    public Binding binding = new Binding();
+    public Set<Endpoint> registry = new HashSet<>();
+    public NodeObserver nodeObserver = new NodeObserver();
     public Logging logging = new Logging();
+    public Binding binding = new Binding();
 
     @Override
     @Experimental(Experimental.Statement.NOT_FULLY_DESIGNED)

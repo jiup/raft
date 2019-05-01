@@ -9,9 +9,9 @@ import org.junit.Test;
 public class EndpointTest {
     @Test
     public void test() {
-        Endpoint.from("127.0.0.1:8080");
-        Endpoint.from("127.0.0.1", 8088);
-        Endpoint.from(":8080");
-        Endpoint.from(8080);
+        Endpoint.of("127.0.0.1:8080");
+        Endpoint.of("127.0.0.1", 8088);
+        Endpoint.of(":8080");
+        Endpoint.of(8080);
     }
 }
