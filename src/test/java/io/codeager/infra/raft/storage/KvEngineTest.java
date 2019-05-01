@@ -2,7 +2,6 @@ package io.codeager.infra.raft.storage;
 
 import org.junit.Test;
 
-import java.io.File;
 import java.util.concurrent.ConcurrentMap;
 
 /**
