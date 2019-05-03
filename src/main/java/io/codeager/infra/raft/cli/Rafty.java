@@ -4,6 +4,8 @@ import io.codeager.infra.raft.Experimental;
 import io.codeager.infra.raft.cli.rpc.Client;
 import io.codeager.infra.raft.core.entity.Endpoint;
 
+import java.io.Closeable;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -11,15 +13,20 @@ import java.util.Map;
  * @since 05/01/2019
  */
 @Experimental(Experimental.Statement.TODO)
-public class Rafty {
+public class Rafty implements Closeable {
     private Client client;
     private Map<String, RaftyMap<?, ?>> channels;
 
-    private Rafty() {
+    private Rafty(Endpoint endpoint) {
+        this.channels = new HashMap<>();
+        this.client = new Client();
+    }
+
+    public static Rafty connect(Endpoint endpoint) {
+        return new Rafty(endpoint);
     }
 
     private <K, V> RaftyMap<K, V> createMap(String name, Client client) {
-        // todo: initialize a new distributed map instance
         return new RaftyMap<>(name, client);
     }
 
@@ -39,16 +46,11 @@ public class Rafty {
     }
 
     public void disconnect() {
-        // client.close();
+        client.close();
     }
 
-    public static Rafty connect(Endpoint endpoint) {
-        return new Rafty(); // todo: build and assign raftyClient
-    }
-
-    public static void main(String[] args) {
-        Rafty rafty = Rafty.connect(Endpoint.of(":9990"));
-        RaftyMap<String, String> map = rafty.subscribe("test");
-        rafty.disconnect();
+    @Override
+    public void close() {
+        disconnect();
     }
 }
