@@ -2,9 +2,7 @@ package io.codeager.infra.raft.core;
 
 import io.codeager.infra.raft.core.entity.Endpoint;
 import io.codeager.infra.raft.core.rpc.Client;
-import io.grpc.vote.StoreRequest;
-import io.grpc.vote.UpdateLogRequest;
-import io.grpc.vote.VoteRequest;
+import io.grpc.vote.*;
 
 /**
  * @author Jiupeng Zhang
@@ -44,5 +42,17 @@ public class RemoteNode extends NodeBase {
 
     public boolean store(StoreRequest storeRequest) {
         return this.client.store(storeRequest);
+    }
+
+    public String get(GetRequest getRequest) {
+        return this.client.get(getRequest);
+    }
+
+    public int size(SizeRequest sizeRequest) {
+        return this.client.size(sizeRequest);
+    }
+
+    public boolean remove(RemoveRequest removeRequest) {
+        return this.client.remove(removeRequest);
     }
 }

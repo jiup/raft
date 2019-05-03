@@ -39,6 +39,21 @@ public class Client {
         return storeResponse.getStatus();
     }
 
+    public String get(GetRequest getRequest) {
+        GetResponse getResponse = blockingStub.get(getRequest);
+        return getResponse.getValue().getValue();
+    }
+
+    public int size(SizeRequest sizeRequest) {
+        SizeResponse sizeResponse = blockingStub.size(sizeRequest);
+        return sizeResponse.getSize();
+    }
+
+    public boolean remove(RemoveRequest removeRequest) {
+        RemoveResponse removeResponse = blockingStub.remove(removeRequest);
+        return removeResponse.getStatus();
+    }
+
     public void shutdown() throws InterruptedException {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }

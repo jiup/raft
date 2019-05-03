@@ -1,7 +1,9 @@
 package io.codeager.infra.raft.core.rpc;
 
+import com.google.protobuf.StringValue;
 import io.codeager.infra.raft.core.LocalNode;
 import io.codeager.infra.raft.core.StateMachine;
+import io.codeager.infra.raft.core.entity.LogEntity;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.vote.*;
@@ -42,12 +44,15 @@ public class Server extends GreeterGrpc.GreeterImplBase {
     @Override
     public void updateLog(UpdateLogRequest request, StreamObserver<UpdateLogReply> responseObserver) {
         node.resetWaitTimer();
-        boolean checkState = this.node.checkLog(request.getIndex(), request.getTerm(), request.getIp());
+        LogEntity logEntity = LogEntity.of(request.getLogEntry());
+        boolean checkState = this.node.checkLog(logEntity, request.getId());
         UpdateLogReply updateLogReply;
         if (checkState) {
-            this.node.appendEntry(request.getIndex(), request.getTerm(), request.getEntry());
+            this.node.recover(logEntity);
+//            this.node.appendEntry(request.getIndex(), request.getTerm(), request.getEntry());
             updateLogReply = UpdateLogReply.newBuilder().setStatus(true).build();
         } else {
+
             updateLogReply = UpdateLogReply.newBuilder().setStatus(false).build();
         }
         responseObserver.onNext(updateLogReply);
@@ -56,8 +61,11 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void appendLog(UpdateLogRequest request, StreamObserver<UpdateLogReply> responseObserver) {
-        node.resetWaitTimer();
-        this.node.appendEntry(request.getIndex(), request.getTerm(), request.getEntry());
+        if (request.hasEntry()) {
+            this.node.appendEntry(LogEntity.of(request.getLogEntry()), request.getEntry().getValue());
+        } else {
+            this.node.appendEntry(LogEntity.of(request.getLogEntry()), null);
+        }
         UpdateLogReply updateLogReply;
         updateLogReply = UpdateLogReply.newBuilder().setStatus(true).build();
         responseObserver.onNext(updateLogReply);
@@ -69,13 +77,58 @@ public class Server extends GreeterGrpc.GreeterImplBase {
         StoreResponse storeResponse;
         boolean status;
         if (this.node.getStateMachine().getState().role == StateMachine.Role.LEADER) {
-            status = this.node.store(request.getEntry());
+            status = this.node.store(request.getEntry().getKey(), request.getEntry().getValue());
             storeResponse = StoreResponse.newBuilder().setStatus(status).build();
         } else {
             status = this.node.leader.store(request);
             storeResponse = StoreResponse.newBuilder().setStatus(status).build();
         }
         responseObserver.onNext(storeResponse);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
+        String key = request.getKey();
+        GetResponse getResponse;
+        if (this.node.getStateMachine().getState().role == StateMachine.Role.LEADER) {
+            String value = this.node.get(key);
+            getResponse = GetResponse.newBuilder().setValue(StringValue.of(value)).build();
+
+        } else {
+            String value = this.node.leader.get(GetRequest.newBuilder().setKey(key).build());
+            getResponse = GetResponse.newBuilder().setValue(StringValue.of(value)).build();
+        }
+        responseObserver.onNext(getResponse);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void size(SizeRequest request, StreamObserver<SizeResponse> responseObserver) {
+
+        SizeResponse sizeResponse;
+        if (this.node.getStateMachine().getState().role == StateMachine.Role.LEADER) {
+            int size = this.node.size();
+            sizeResponse = SizeResponse.newBuilder().setSize(size).build();
+        } else {
+            int size = this.node.leader.size(SizeRequest.newBuilder().build());
+            sizeResponse = SizeResponse.newBuilder().setSize(size).build();
+        }
+        responseObserver.onNext(sizeResponse);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void remove(RemoveRequest request, StreamObserver<RemoveResponse> responseObserver) {
+        RemoveResponse removeResponse;
+        if (this.node.getStateMachine().getState().role == StateMachine.Role.LEADER) {
+            boolean status = this.node.remove(request.getKey());
+            removeResponse = RemoveResponse.newBuilder().setStatus(status).build();
+        } else {
+            boolean status = this.node.leader.remove(request);
+            removeResponse = RemoveResponse.newBuilder().setStatus(status).build();
+        }
+        responseObserver.onNext(removeResponse);
         responseObserver.onCompleted();
     }
 

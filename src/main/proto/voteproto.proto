@@ -1,5 +1,5 @@
 syntax = "proto3";
-
+import "google/protobuf/wrappers.proto";
 option java_multiple_files = true;
 option java_package = "io.grpc.vote";
 option java_outer_classname = "Vote";
@@ -11,13 +11,26 @@ package Vote;
 service Greeter {
     // Sends a greeting
     //    rpc SayHello (HelloRequest) returns (HelloReply) {}
+    //api for server
     rpc AskForVote (VoteRequest) returns (VoteReply) {
     }
     rpc UpdateLog (UpdateLogRequest) returns (UpdateLogReply) {
     }
     rpc AppendLog (UpdateLogRequest) returns (UpdateLogReply) {
     }
+    rpc RemoveLog (UpdateLogRequest) returns (UpdateLogReply) {
+
+    }
+    //api for user
     rpc Store (StoreRequest) returns (StoreResponse) {
+    }
+    rpc Get (GetRequest) returns (GetResponse) {
+    }
+    rpc Size (SizeRequest) returns (SizeResponse) {
+
+    }
+    rpc Remove (RemoveRequest) returns (RemoveResponse) {
+
     }
     //    rpc CommitMessage(VoteRequest) returns(VoteReply){}
 }
@@ -31,13 +44,42 @@ service Greeter {
 //message HelloReply {
 //    string message = 1;
 //}
-message Entry {
+message RemoveRequest {
     string key = 1;
-    string value = 2;
+}
+
+message RemoveResponse {
+    bool status = 1;
+}
+
+message SizeRequest {
+
+}
+
+message SizeResponse {
+    int32 size = 1;
+}
+
+message GetRequest {
+    string key = 1;
+}
+message GetResponse {
+    google.protobuf.StringValue value = 1;
+}
+message DataEntry {
+    string key = 1;
+    google.protobuf.StringValue value = 2;
+}
+message LogEntry {
+    int32 index = 1;
+    int32 term = 2;
+    string key = 3;
+    google.protobuf.StringValue value = 5;
+    int32 version = 4;
 }
 
 message StoreRequest {
-    Entry entry = 1;
+    DataEntry entry = 1;
 }
 
 message StoreResponse {
@@ -46,10 +88,9 @@ message StoreResponse {
 
 message UpdateLogRequest {
 
-    int32 term = 1;
-    int32 index = 2;
-    Entry entry = 3;
-    int32 ip = 4;
+    LogEntry logEntry = 1;
+    DataEntry entry = 2;
+    string id = 3;
 }
 
 message UpdateLogReply {

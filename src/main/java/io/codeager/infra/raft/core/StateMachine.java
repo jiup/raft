@@ -1,12 +1,16 @@
 package io.codeager.infra.raft.core;
 
 import io.codeager.infra.raft.Experimental;
+import io.codeager.infra.raft.core.entity.LogEntity;
+import io.codeager.infra.raft.storage.RevocableMap;
+import io.codeager.infra.raft.storage.RevocableMapAdapter;
 import org.apache.commons.lang.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author Jiupeng Zhang
@@ -20,26 +24,27 @@ public class StateMachine implements Runnable {
 
     private State state;
     private LocalNode node;
+    RevocableMap<String, String> kvdb;
     private volatile boolean suspend;
 
     public static class State {
         public Role role = Role.FOLLOWER;
-        int term = 1;
+        int term = 0;
         int votes = 0;
-        int index = 0;
+        int index = -1;
         int lastVoteTerm = 0;
-        private List<Integer> log = new ArrayList<>();
+        private List<LogEntity> log = new ArrayList<>();
 
 
         static State newInitialState() {
             return new State();
         }
 
-        public List<Integer> getLog() {
+        public List<LogEntity> getLog() {
             return log;
         }
 
-        public void setLog(List<Integer> log) {
+        public void setLog(List<LogEntity> log) {
             this.log = log;
         }
 
@@ -60,18 +65,49 @@ public class StateMachine implements Runnable {
         }
     }
 
-    public void appendEntry(int index, int term) {
-
-        this.state.term = term;
-        this.state.index = index;
-        if (index < this.state.getLog().size()) {
-            this.state.log.set(index, term);
+    public boolean appendEntry(LogEntity logEntity, String value) {
+        boolean status;
+        this.state.term = logEntity.getTerm();
+        this.state.index = logEntity.getIndex();
+        if (logEntity.getIndex() < this.state.getLog().size()) {
+            this.getState().log.set(logEntity.getIndex(), logEntity);
         } else {
-            this.state.log.add(term);
+            this.state.log.add(logEntity);
         }
+        try {
+            this.kvdb.put(logEntity.getKey(), value);
+            LOG.debug("appendEntry {}", this.state.log);
+            for (LogEntity t : this.state.log) {
+                System.err.println(t.getKey() + ": " + t.getValue());
+            }
+            status = true;
+        } catch (Exception e) {
+            status = false;
+        }
+        return status;
 
-        LOG.debug("appendEntry {}", this.state.log);
-        System.err.println(this.state.log);
+    }
+
+    public boolean removeEntry(LogEntity logEntity) {
+        boolean status;
+        this.state.term = logEntity.getTerm();
+        this.state.index = logEntity.getIndex();
+        if (logEntity.getIndex() < this.state.getLog().size()) {
+            this.getState().log.set(logEntity.getIndex(), logEntity);
+        } else {
+            this.state.log.add(logEntity);
+        }
+        try {
+            this.kvdb.remove(logEntity.getKey());
+            LOG.debug("appendEntry {}", this.state.log);
+            for (LogEntity t : this.state.log) {
+                System.err.println(t.getKey() + ": " + t.getValue());
+            }
+            status = true;
+        } catch (Exception e) {
+            status = false;
+        }
+        return status;
     }
 
 
@@ -83,6 +119,7 @@ public class StateMachine implements Runnable {
     public StateMachine(LocalNode localNode, State initialState) {
         this.node = localNode;
         this.state = initialState;
+        this.kvdb = new RevocableMapAdapter<>(new ConcurrentHashMap<String, byte[]>());
     }
 
 
@@ -117,6 +154,7 @@ public class StateMachine implements Runnable {
                 case LEADER:
                     LOG.debug("switch > case > LEADER");
                     System.err.println("switch > case > LEADER");
+                    this.node.sendHeartbeat();
                     this.node.heartbeatTimer.start();
                     synchronized (this) {
                         try {
@@ -128,6 +166,10 @@ public class StateMachine implements Runnable {
                     break;
             }
         }
+    }
+
+    public RevocableMap<String, String> getKvdb() {
+        return kvdb;
     }
 
     public void setRole(Role role) {
@@ -142,6 +184,7 @@ public class StateMachine implements Runnable {
         this.state = state;
         return this;
     }
+
 
     public LocalNode getNode() {
         return node;

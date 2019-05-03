@@ -3,13 +3,11 @@ package io.codeager.infra.raft.core;
 
 import io.codeager.infra.raft.conf.Configuration;
 import io.codeager.infra.raft.core.entity.Endpoint;
+import io.codeager.infra.raft.core.entity.LogEntity;
 import io.codeager.infra.raft.core.rpc.Client;
 import io.codeager.infra.raft.core.rpc.Server;
 import io.codeager.infra.raft.core.util.NodeTimer;
-import io.grpc.vote.Entry;
-import io.grpc.vote.StoreRequest;
-import io.grpc.vote.UpdateLogRequest;
-import io.grpc.vote.VoteRequest;
+import io.grpc.vote.*;
 
 import java.net.MalformedURLException;
 import java.util.ArrayList;
@@ -83,19 +81,56 @@ public class LocalNode extends NodeBase {
         this.waitTimer.reset(10000 + new Random().nextInt(5000));
     }
 
-    public boolean store(Entry entry) {
+    public boolean askCommit() {
         int count = 0;
-        for (RemoteNode peer : peers) {
-            //Todo
-            count++;
-        }
-        if (count > peers.size() / 2) {
-            StateMachine.State state = this.stateMachine.getState();
-            this.appendEntry(state.index + 1, state.term, entry);
-            UpdateLogRequest updateLogRequest = UpdateLogRequest.newBuilder().setIndex(state.index).setTerm(state.term).build();
+        StateMachine.State state = this.stateMachine.getState();
+        List<LogEntity> logEntities = state.getLog();
+        if (logEntities.size() > 0) {
+            LogEntity preLogEntity = logEntities.get(logEntities.size() - 1);
+            UpdateLogRequest updateLogRequest = UpdateLogRequest.newBuilder().setLogEntry(preLogEntity.toRPCEntry()).build();
             for (RemoteNode peer : peers) {
-                peer.appendEntry(updateLogRequest);
+                if (peer.updateLog(updateLogRequest)) {
+                    count++;
+                }
             }
+        }
+        return count > peers.size() / 2;
+    }
+
+    public boolean store(String key, String value) {
+        StateMachine.State state = this.stateMachine.getState();
+        List<LogEntity> logEntities = state.getLog();
+        //todo version is not used currently
+        LogEntity newLogEntity = LogEntity.of(state.index + 1, state.term, key, value, 0);
+        //when log is empty, which means the kv system is new. so it doesn't need to ask for commit
+        if (logEntities.size() == 0 || askCommit()) {
+            DataEntry dataEntry = DataEntry.newBuilder().setKey(key).setValue(value).build();
+            UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
+                    .setLogEntry(newLogEntity.toRPCEntry())
+                    .setEntry(dataEntry).build();
+            for (RemoteNode peer : peers) {
+                peer.appendEntry(appendLogRequest);
+            }
+            this.appendEntry(newLogEntity, value);
+            return true;
+
+        }
+        return false;
+    }
+
+    public boolean remove(String key) {
+        StateMachine.State state = this.stateMachine.getState();
+        List<LogEntity> logEntities = state.getLog();
+        //todo version is not used currently
+        LogEntity newLogEntity = LogEntity.of(state.index + 1, state.term, key, null, 0);
+        if (logEntities.size() == 0 || askCommit()) {
+//            DataEntry dataEntry  = DataEntry.newBuilder().setKey(key).build();
+            UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
+                    .setLogEntry(newLogEntity.toRPCEntry()).build();
+            for (RemoteNode peer : peers) {
+                peer.appendEntry(appendLogRequest);
+            }
+            this.appendEntry(newLogEntity, null);
             return true;
 
         }
@@ -113,30 +148,30 @@ public class LocalNode extends NodeBase {
     }
 
 
-    private void sendHeartbeat() {
-        List<Integer> log = this.stateMachine.getState().getLog();
+    void sendHeartbeat() {
+        List<LogEntity> log = this.stateMachine.getState().getLog();
         for (RemoteNode peer : peers) {
             int index = log.size() - 1;
             peer.setIndex(index);
-            System.err.println(index);
+            UpdateLogRequest.Builder updateLogRequestBuilder = UpdateLogRequest.newBuilder().setId(this.getId());
 
-            UpdateLogRequest.Builder updateLogRequestBuilder = UpdateLogRequest.newBuilder();
             if (index >= 0) {
-                updateLogRequestBuilder.setIndex(index).setTerm(log.get(index));
+                updateLogRequestBuilder.setLogEntry(log.get(index).toRPCEntry());
             }
             boolean flag = false;
             while (!peer.updateLog(updateLogRequestBuilder.build()) && index >= 0) {
                 peer.setIndex(index);
-                updateLogRequestBuilder.setIndex(index);
-                updateLogRequestBuilder.setTerm(log.get(index));
+                updateLogRequestBuilder.setLogEntry(log.get(index).toRPCEntry());
                 index--;
                 flag = true;
             }
             while (flag && index < this.stateMachine.getState().getLog().size() - 1) {
                 index++;
                 peer.setIndex(index);
-                updateLogRequestBuilder.setIndex(index);
-                updateLogRequestBuilder.setTerm(log.get(index));
+                updateLogRequestBuilder.setLogEntry(log.get(index).toRPCEntry());
+                //todo: if i want to recover follower's data, how can i get K V in specific version
+                DataEntry dataEntry = DataEntry.newBuilder().setKey(log.get(index).getKey()).setValue(log.get(index).getValue()).build();
+                updateLogRequestBuilder.setEntry(dataEntry);
                 peer.appendEntry(updateLogRequestBuilder.build());
             }
 
@@ -151,6 +186,18 @@ public class LocalNode extends NodeBase {
                     this.stateMachine.setRole(StateMachine.Role.LEADER);
             }
 
+        }
+    }
+
+    public String get(String key) {
+        return this.stateMachine.kvdb.get(key);
+    }
+
+    public void recover(LogEntity logEntity) {
+        int curIndex = logEntity.getIndex() + 1;
+        List<LogEntity> selfLogs = this.stateMachine.getState().getLog();
+        for (int i = curIndex; i < selfLogs.size(); i++) {
+            this.stateMachine.kvdb.revoke(selfLogs.get(i).getKey());
         }
     }
 
@@ -172,23 +219,29 @@ public class LocalNode extends NodeBase {
 
     }
 
+    public int size() {
+        return this.stateMachine.getKvdb().size();
+    }
 
-    public boolean checkLog(int index, int term, int id) {
-        if (index < this.stateMachine.getState().getLog().size()) {
+
+    public boolean checkLog(LogEntity logEntity, String id) {
+        if (logEntity.getIndex() < this.stateMachine.getState().getLog().size()) {
             for (RemoteNode peer : peers) {
-                if (peer.getId().equals(String.valueOf(id))) {
+                if (peer.getId().equals(id)) {
                     this.leader = peer;
                 }
             }
-            return this.stateMachine.getState().getLog().get(index) == term;
+            return this.stateMachine.getState().getLog().get(logEntity.getIndex()).getTerm() == logEntity.getTerm();
         }
         return false;
     }
 
-    public void appendEntry(int index, int term, Entry entry) {
-        //todo only append log
-        this.stateMachine.appendEntry(index, term);
+    public boolean appendEntry(LogEntity logEntity, String value) {
 
+        if (value == null) {
+            return this.stateMachine.removeEntry(logEntity);
+        }
+        return this.stateMachine.appendEntry(logEntity, value);
     }
 
     public void start(StateMachine stateMachine) {
@@ -211,27 +264,36 @@ public class LocalNode extends NodeBase {
     }
 
     public static void main(String... args) throws MalformedURLException {
-//        LocalNode node1 = new LocalNode(" ", "no1", new URL("FTP", "127.0.0.1", 5001, " "), new int[]{5002, 5003});
+//        LocalNode node1 = new LocalNode(" ", "no1", Endpoint.of("127.0.0.1",5001), new int[]{5002, 5003});
 //        StateMachine stateMachine1 = new StateMachine(node1);
 //        node1.setStateMachine(stateMachine1);
-//        node1.appendEntry(0,1,null);
-//        node1.appendEntry(1,1,null);
-//        node1.appendEntry(2,2,null);
 //        node1.start(stateMachine1);
 
-//        LocalNode node2 = new LocalNode(" ", "no2", new URL("FTP", "127.0.0.1", 5002, " "), new int[]{5001, 5003});
+//        LocalNode node2 = new LocalNode(" ", "no2", Endpoint.of("127.0.0.1",5002), new int[]{5001, 5003});
 //        StateMachine stateMachine2 = new StateMachine(node2);
 //        node2.setStateMachine(stateMachine2);
 //        node2.start(stateMachine2);
 //
-        LocalNode node3 = new LocalNode(" ", "no3", Endpoint.from("127.0.0.1", 5003), new int[]{5002, 5001});
-        StateMachine stateMachine3 = new StateMachine(node3);
-        node3.setStateMachine(stateMachine3);
-        node3.start(stateMachine3);
+//        LocalNode node3 = new LocalNode(" ", "no3", Endpoint.of("127.0.0.1", 5003), new int[]{5002, 5001});
+//        StateMachine stateMachine3 = new StateMachine(node3);
+//        node3.setStateMachine(stateMachine3);
+//        node3.start(stateMachine3);
 //
         Client client = new Client("127.0.0.1", 5001);
-        client.store(StoreRequest.newBuilder().setEntry(Entry.newBuilder().setKey("1").setValue("1").build()).build());
+//        boolean status = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("1").setValue("3").build()).build());
+//        System.out.println(status);
+        boolean status1 = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("2").setValue("4").build()).build());
+        System.out.println(status1);
+//        boolean status2 = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("1").build()).build());
+//        System.out.println(status2);
+        boolean status3 = client.remove(RemoveRequest.newBuilder().setKey("2").build());
+        System.out.println(status3);
 
+//        String value2 = client.get(GetRequest.newBuilder().setKey("2").build());
+//        System.out.println(value2);
+
+//        String value3 = client.get(GetRequest.newBuilder().setKey("1").build());
+//        System.out.println(value2);
     }
 
     public List<RemoteNode> getPeers() {
