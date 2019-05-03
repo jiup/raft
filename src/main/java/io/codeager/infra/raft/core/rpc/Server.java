@@ -142,6 +142,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
         responseObserver.onNext(removeResponse);
         responseObserver.onCompleted();
     }
+    
 
     public static void main(String... args) {
 

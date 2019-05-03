@@ -265,10 +265,10 @@ public class LocalNode extends NodeBase {
     }
 
     public static void main(String... args) throws MalformedURLException {
-//        LocalNode node1 = new LocalNode(" ", "no1", Endpoint.of("127.0.0.1",5001), new int[]{5002, 5003});
-//        StateMachine stateMachine1 = new StateMachine(node1);
-//        node1.setStateMachine(stateMachine1);
-//        node1.start(stateMachine1);
+        LocalNode node1 = new LocalNode(" ", "no1", Endpoint.of("127.0.0.1", 5001), new int[]{5002, 5003});
+        StateMachine stateMachine1 = new StateMachine(node1);
+        node1.setStateMachine(stateMachine1);
+        node1.start(stateMachine1);
 
 //        LocalNode node2 = new LocalNode(" ", "no2", Endpoint.of("127.0.0.1",5002), new int[]{5001, 5003});
 //        StateMachine stateMachine2 = new StateMachine(node2);
