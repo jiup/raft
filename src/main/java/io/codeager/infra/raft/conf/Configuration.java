@@ -1,6 +1,7 @@
 package io.codeager.infra.raft.conf;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -41,9 +42,15 @@ public class Configuration implements Serializable {
         public String errPath = "/path/to/raft.err";
     }
 
+    public enum Mode {
+        @JsonProperty("debug") DEBUG,
+        @JsonProperty("protected") PROTECTED
+    }
+
     public int maxClient = 1;
+    public Mode mode = Mode.DEBUG;
     public LocalNode origin = new LocalNode() {{
-        id = RandomStringUtils.randomAlphanumeric(8).toLowerCase();
+        id = RandomStringUtils.randomAlphanumeric(7).toLowerCase();
         name = "node-".concat(id);
     }};
     public Set<Endpoint> registry = new HashSet<>();
