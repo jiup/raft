@@ -30,6 +30,33 @@ public class Client {
         return updateLogReply.getStatus();
     }
 
+    public void appendEntry(UpdateLogRequest updateLogRequest) {
+        UpdateLogReply updateLogReply = blockingStub.appendLog(updateLogRequest);
+    }
+
+    public boolean store(StoreRequest storeRequest) {
+        StoreResponse storeResponse = blockingStub.store(storeRequest);
+        return storeResponse.getStatus();
+    }
+
+    public String get(GetRequest getRequest) {
+        GetResponse getResponse = blockingStub.get(getRequest);
+        if (getResponse.hasValue()) {
+            return getResponse.getValue().getValue();
+        }
+        return null;
+    }
+
+    public int size(SizeRequest sizeRequest) {
+        SizeResponse sizeResponse = blockingStub.size(sizeRequest);
+        return sizeResponse.getSize();
+    }
+
+    public boolean remove(RemoveRequest removeRequest) {
+        RemoveResponse removeResponse = blockingStub.remove(removeRequest);
+        return removeResponse.getStatus();
+    }
+
     public void shutdown() throws InterruptedException {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }

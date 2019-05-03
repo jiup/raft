@@ -1,5 +1,5 @@
 syntax = "proto3";
-
+import "google/protobuf/wrappers.proto";
 option java_multiple_files = true;
 option java_package = "io.grpc.vote";
 option java_outer_classname = "Vote";
@@ -10,10 +10,29 @@ package Vote;
 // The greeting service definition.
 service Greeter {
     // Sends a greeting
-//    rpc SayHello (HelloRequest) returns (HelloReply) {}
-    rpc AskForVote (VoteRequest) returns(VoteReply) {}
-    rpc UpdateLog (UpdateLogRequest) returns(UpdateLogReply){}
-//    rpc CommitMessage(VoteRequest) returns(VoteReply){}
+    //    rpc SayHello (HelloRequest) returns (HelloReply) {}
+    //api for server
+    rpc AskForVote (VoteRequest) returns (VoteReply) {
+    }
+    rpc UpdateLog (UpdateLogRequest) returns (UpdateLogReply) {
+    }
+    rpc AppendLog (UpdateLogRequest) returns (UpdateLogReply) {
+    }
+    rpc RemoveLog (UpdateLogRequest) returns (UpdateLogReply) {
+
+    }
+    //api for user
+    rpc Store (StoreRequest) returns (StoreResponse) {
+    }
+    rpc Get (GetRequest) returns (GetResponse) {
+    }
+    rpc Size (SizeRequest) returns (SizeResponse) {
+
+    }
+    rpc Remove (RemoveRequest) returns (RemoveResponse) {
+
+    }
+    //    rpc CommitMessage(VoteRequest) returns(VoteReply){}
 }
 
 // The request message containing the user's name.
@@ -25,32 +44,65 @@ service Greeter {
 //message HelloReply {
 //    string message = 1;
 //}
-message Entry{
+message RemoveRequest {
     string key = 1;
-    string value = 2;
 }
 
-
-
-
-
-
-message UpdateLogRequest{
-    int32 term  = 1;
-    int32 index = 2;
-    Entry entry = 3;
-}
-
-message UpdateLogReply{
+message RemoveResponse {
     bool status = 1;
 }
 
-message VoteRequest{
-    int32 port = 1;
-    int32 term  = 2;
+message SizeRequest {
 
 }
 
-message VoteReply{
+message SizeResponse {
+    int32 size = 1;
+}
+
+message GetRequest {
+    string key = 1;
+}
+message GetResponse {
+    google.protobuf.StringValue value = 1;
+}
+message DataEntry {
+    string key = 1;
+    google.protobuf.StringValue value = 2;
+}
+message LogEntry {
+    int32 index = 1;
+    int32 term = 2;
+    string key = 3;
+    google.protobuf.StringValue value = 5;
+    int32 version = 4;
+}
+
+message StoreRequest {
+    DataEntry entry = 1;
+}
+
+message StoreResponse {
+    bool status = 1;
+}
+
+message UpdateLogRequest {
+
+    LogEntry logEntry = 1;
+    DataEntry entry = 2;
+    string id = 3;
+}
+
+message UpdateLogReply {
+    bool status = 1;
+}
+
+message VoteRequest {
+    int32 port = 1;
+    int32 term = 2;
+
+}
+
+message VoteReply {
     bool status = 1;
 }
