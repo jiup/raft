@@ -19,7 +19,7 @@ import java.util.Set;
  * @since 04/25/2019
  */
 public class Configuration implements Serializable {
-    static class LocalNode {
+    public static class LocalNode {
         public String id = "undefined";
         public String name = "undefined";
         public Endpoint endpoint = Endpoint.DEFAULT;
@@ -28,16 +28,16 @@ public class Configuration implements Serializable {
         public long heartbeatTimeout = 10_000; // 10 seconds
     }
 
-    static class NodeObserver {
+    public static class NodeObserver {
         public int maxClient = 1;
         public Endpoint endpoint = Endpoint.of(36507);
     }
 
-    static class Binding {
+    public static class Binding {
         public Class cli = Configuration.class;
     }
 
-    static class Logging {
+    public static class Logging {
         public String outPath = "/path/to/raft.out";
         public String errPath = "/path/to/raft.err";
     }
