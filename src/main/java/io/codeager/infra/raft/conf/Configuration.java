@@ -23,9 +23,9 @@ public class Configuration implements Serializable {
         public String id = "undefined";
         public String name = "undefined";
         public Endpoint endpoint = Endpoint.DEFAULT;
-        public long waitTimeout = 40_000; // 40 seconds
-        public long voteTimeout = 10_000; // 10 seconds
-        public long heartbeatTimeout = 10_000; // 10 seconds
+        public int waitTimeout = 40_000; // 40 seconds
+        public int voteTimeout = 10_000; // 10 seconds
+        public int heartbeatTimeout = 10_000; // 10 seconds
     }
 
     public static class NodeObserver {
