@@ -1,6 +1,7 @@
 package io.codeager.infra.raft.core;
 
 
+import com.google.protobuf.StringValue;
 import io.codeager.infra.raft.conf.Configuration;
 import io.codeager.infra.raft.core.entity.Endpoint;
 import io.codeager.infra.raft.core.entity.LogEntity;
@@ -104,7 +105,7 @@ public class LocalNode extends NodeBase {
         LogEntity newLogEntity = LogEntity.of(state.index + 1, state.term, key, value, 0);
         //when log is empty, which means the kv system is new. so it doesn't need to ask for commit
         if (logEntities.size() == 0 || askCommit()) {
-            DataEntry dataEntry = DataEntry.newBuilder().setKey(key).setValue(value).build();
+            DataEntry dataEntry = DataEntry.newBuilder().setKey(key).setValue(StringValue.of(value)).build();
             UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
                     .setLogEntry(newLogEntity.toRPCEntry())
                     .setEntry(dataEntry).build();
@@ -170,7 +171,7 @@ public class LocalNode extends NodeBase {
                 peer.setIndex(index);
                 updateLogRequestBuilder.setLogEntry(log.get(index).toRPCEntry());
                 //todo: if i want to recover follower's data, how can i get K V in specific version
-                DataEntry dataEntry = DataEntry.newBuilder().setKey(log.get(index).getKey()).setValue(log.get(index).getValue()).build();
+                DataEntry dataEntry = DataEntry.newBuilder().setKey(log.get(index).getKey()).setValue(StringValue.of(log.get(index).getValue())).build();
                 updateLogRequestBuilder.setEntry(dataEntry);
                 peer.appendEntry(updateLogRequestBuilder.build());
             }
@@ -278,22 +279,31 @@ public class LocalNode extends NodeBase {
 //        StateMachine stateMachine3 = new StateMachine(node3);
 //        node3.setStateMachine(stateMachine3);
 //        node3.start(stateMachine3);
-//
+////
         Client client = new Client("127.0.0.1", 5001);
-//        boolean status = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("1").setValue("3").build()).build());
-//        System.out.println(status);
-        boolean status1 = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("2").setValue("4").build()).build());
-        System.out.println(status1);
-//        boolean status2 = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("1").build()).build());
-//        System.out.println(status2);
-        boolean status3 = client.remove(RemoveRequest.newBuilder().setKey("2").build());
-        System.out.println(status3);
-
 //        String value2 = client.get(GetRequest.newBuilder().setKey("2").build());
 //        System.out.println(value2);
-
-//        String value3 = client.get(GetRequest.newBuilder().setKey("1").build());
-//        System.out.println(value2);
+//        boolean status = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("1").setValue(StringValue.of("3")).build()).build());
+//        System.out.println(status);
+//        boolean status1 = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("2").setValue(StringValue.of("4")).build()).build());
+//        System.out.println(status1);
+//        String value3 = client.get(GetRequest.newBuilder().setKey("2").build());
+//        System.out.println(value3);
+//        boolean status2 = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("1").build()).build());
+//        System.out.println(status2);
+//        String value4 = client.get(GetRequest.newBuilder().setKey("2").build());
+//        System.out.println(value4);
+        boolean status3 = client.remove(RemoveRequest.newBuilder().setKey("1").build());
+        System.out.println(status3);
+//
+//
+//
+//        String value5 = client.get(GetRequest.newBuilder().setKey("2").build());
+//        System.out.println(value5);
+//        int size = client.size(SizeRequest.newBuilder().build());
+//        System.out.println(size);
+        String value5 = client.get(GetRequest.newBuilder().setKey("1").build());
+        System.out.println(value5);
     }
 
     public List<RemoteNode> getPeers() {

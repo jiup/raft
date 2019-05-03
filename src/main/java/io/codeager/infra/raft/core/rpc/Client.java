@@ -41,7 +41,10 @@ public class Client {
 
     public String get(GetRequest getRequest) {
         GetResponse getResponse = blockingStub.get(getRequest);
-        return getResponse.getValue().getValue();
+        if (getResponse.hasValue()) {
+            return getResponse.getValue().getValue();
+        }
+        return null;
     }
 
     public int size(SizeRequest sizeRequest) {

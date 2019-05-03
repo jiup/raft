@@ -28,6 +28,12 @@ public class LogEntity {
     }
 
     public LogEntry toRPCEntry() {
+        if (this.value == null) {
+            return LogEntry.newBuilder().setIndex(this.index)
+                    .setTerm(this.term)
+                    .setKey(this.key)
+                    .setVersion(this.version).build();
+        }
         return LogEntry.newBuilder().setIndex(this.index)
                 .setTerm(this.term)
                 .setKey(this.key)

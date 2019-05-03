@@ -62,7 +62,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
     @Override
     public void appendLog(UpdateLogRequest request, StreamObserver<UpdateLogReply> responseObserver) {
         if (request.hasEntry()) {
-            this.node.appendEntry(LogEntity.of(request.getLogEntry()), request.getEntry().getValue());
+            this.node.appendEntry(LogEntity.of(request.getLogEntry()), request.getEntry().getValue().getValue());
         } else {
             this.node.appendEntry(LogEntity.of(request.getLogEntry()), null);
         }
@@ -77,7 +77,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
         StoreResponse storeResponse;
         boolean status;
         if (this.node.getStateMachine().getState().role == StateMachine.Role.LEADER) {
-            status = this.node.store(request.getEntry().getKey(), request.getEntry().getValue());
+            status = this.node.store(request.getEntry().getKey(), request.getEntry().getValue().getValue());
             storeResponse = StoreResponse.newBuilder().setStatus(status).build();
         } else {
             status = this.node.leader.store(request);
@@ -91,13 +91,24 @@ public class Server extends GreeterGrpc.GreeterImplBase {
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
         String key = request.getKey();
         GetResponse getResponse;
+        // just find the key in self
         if (this.node.getStateMachine().getState().role == StateMachine.Role.LEADER) {
             String value = this.node.get(key);
-            getResponse = GetResponse.newBuilder().setValue(StringValue.of(value)).build();
+            if (value == null) {
+                getResponse = GetResponse.newBuilder().build();
+            } else {
+                getResponse = GetResponse.newBuilder().setValue(StringValue.of(value)).build();
+
+            }
 
         } else {
             String value = this.node.leader.get(GetRequest.newBuilder().setKey(key).build());
-            getResponse = GetResponse.newBuilder().setValue(StringValue.of(value)).build();
+            if (value == null) {
+                getResponse = GetResponse.newBuilder().build();
+            } else {
+                getResponse = GetResponse.newBuilder().setValue(StringValue.of(value)).build();
+            }
+
         }
         responseObserver.onNext(getResponse);
         responseObserver.onCompleted();
