@@ -19,7 +19,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Experimental(Experimental.Statement.NOT_FULLY_DESIGNED)
 public class StateMachine implements Runnable {
     public static final Logger LOG = LoggerFactory.getLogger(StateMachine.class);
-    public final Object lock = new Object();
 
     public enum Role {
         FOLLOWER,
@@ -113,6 +112,9 @@ public class StateMachine implements Runnable {
         return status;
     }
 
+    public StateMachine() {
+        this(null);
+    }
 
     public StateMachine(LocalNode localNode) {
         this(localNode, State.newInitialState());
@@ -122,6 +124,10 @@ public class StateMachine implements Runnable {
         this.node = localNode;
         this.state = initialState;
         this.internalMap = new RevocableMapAdapter<>(new ConcurrentHashMap<String, byte[]>());
+    }
+
+    public void bind(LocalNode node) {
+        this.node = node;
     }
 
     @Override

@@ -8,10 +8,12 @@ import io.codeager.infra.raft.core.entity.LogEntry;
 import io.codeager.infra.raft.core.rpc.Client;
 import io.codeager.infra.raft.core.rpc.Server;
 import io.codeager.infra.raft.core.util.NodeTimer;
+import io.codeager.infra.raft.util.ConfigurationHelper;
 import io.grpc.vote.DataEntry;
 import io.grpc.vote.UpdateLogRequest;
 import io.grpc.vote.VoteRequest;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -22,8 +24,8 @@ import java.util.Random;
  * @since 04/26/2019
  */
 public class LocalNode extends NodeBase {
+    private final StateMachine stateMachine;
     private Configuration configuration;
-    private StateMachine stateMachine;
     private Random random;
     private Server server;
     private RemoteNode leader;
@@ -33,15 +35,32 @@ public class LocalNode extends NodeBase {
     private NodeTimer heartbeatTimer;
     // todo: move internal kv engine (stateMachine.internalMap) outside.
 
-    public LocalNode(String id, String name, Endpoint endpoint, int[] peers) {
-        super(id, name, endpoint);
+    public LocalNode(Configuration configuration, StateMachine stateMachine) {
+        super(configuration.origin.id, configuration.origin.name, configuration.origin.endpoint);
+        this.stateMachine = stateMachine;
         this.random = new Random();
         this.server = new Server(this);
         this.peers = new ArrayList<>();
-        for (int port : peers) {
-            this.peers.add(new RemoteNode(" ", " ", null, new Client("127.0.0.1", port)));
+        for (Endpoint e : configuration.registry) {
+            this.peers.add(new RemoteNode("undef", "undef", null, new Client(e.getHost(), e.getPort())));
         }
-        this.initTimers();
+        this.waitTimer = new NodeTimer(this, "waitTimer", configuration.origin.waitTimeout) {
+            protected void onTrigger() {
+                this.node.becomeCandidate();
+                this.stop();
+            }
+        };
+        this.voteTimer = new NodeTimer(this, "voteTimer", random.nextInt(configuration.origin.voteTimeout)) {
+            @Override
+            protected void onTrigger() {
+                this.node.checkVoteResult();
+            }
+        };
+        this.heartbeatTimer = new NodeTimer(this, "heartbeatTimer", random.nextInt(configuration.origin.heartbeatTimeout)) {
+            protected void onTrigger() {
+                this.node.sendHeartbeat();
+            }
+        };
     }
 
     public void resetWaitTimer() {
@@ -143,7 +162,7 @@ public class LocalNode extends NodeBase {
     void checkVoteResult() {
         this.voteTimer.stop();
         if (this.stateMachine.getState().votes > (this.peers.size() / 2)) {
-            synchronized (this.stateMachine.lock) {
+            synchronized (this.stateMachine) {
                 if (this.stateMachine.onState(StateMachine.Role.CANDIDATE))
                     this.stateMachine.setRole(StateMachine.Role.LEADER);
             }
@@ -164,7 +183,7 @@ public class LocalNode extends NodeBase {
 
     public boolean handleVoteRequest(int voteTerm) {
         if (voteTerm >= this.stateMachine.getState().term) {
-            synchronized (this.stateMachine.lock) {
+            synchronized (this.stateMachine) {
                 this.stateMachine.getState().role = StateMachine.Role.FOLLOWER;
             }
         }
@@ -194,8 +213,8 @@ public class LocalNode extends NodeBase {
         return this.stateMachine.appendEntry(logEntry, value);
     }
 
-    public void start(StateMachine stateMachine) {
-        this.stateMachine = stateMachine;
+    public void start() {
+//        this.stateMachine = stateMachine;
         ServerContainer serverContainer = new ServerContainer(this.server);
         Thread thread1 = new Thread(serverContainer);
         Thread thread2 = new Thread(this.stateMachine);
@@ -207,10 +226,6 @@ public class LocalNode extends NodeBase {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-    }
-
-    public void start() {
-        start(new StateMachine(this));
     }
 
     public StateMachine getStateMachine() {
@@ -235,7 +250,7 @@ public class LocalNode extends NodeBase {
 
     private void becomeCandidate() {
         this.stateMachine.setRole(StateMachine.Role.CANDIDATE);
-        synchronized (this.stateMachine.lock) {
+        synchronized (this.stateMachine) {
             this.stateMachine.notifyAll();
         }
     }
@@ -278,5 +293,13 @@ public class LocalNode extends NodeBase {
                 server.stop();
             }
         }
+    }
+
+    public static void main(String[] args) throws IOException {
+        Configuration configuration = ConfigurationHelper.load();
+        StateMachine stateMachine = new StateMachine();
+        LocalNode node = new LocalNode(configuration, stateMachine);
+        stateMachine.bind(node);
+        node.start();
     }
 }
