@@ -19,10 +19,12 @@ public class Rafty implements Closeable {
 
     private Rafty(Endpoint endpoint) {
         this.channels = new HashMap<>();
-        this.client = new Client();
+        this.client = new Client(
+                new io.codeager.infra.raft.core.rpc.Client(endpoint.getHost(), endpoint.getPort())
+        );
     }
 
-    public static Rafty connect(Endpoint endpoint) {
+    public static Rafty create(Endpoint endpoint) {
         return new Rafty(endpoint);
     }
 

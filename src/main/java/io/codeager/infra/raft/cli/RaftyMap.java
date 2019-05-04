@@ -21,6 +21,7 @@ public class RaftyMap<K, V> implements DistributedMap<K, V> {
 
     RaftyMap(String name, Client client) {
         this.name = name;
+        this.client = client;
     }
 
     public String getName() {
@@ -29,20 +30,17 @@ public class RaftyMap<K, V> implements DistributedMap<K, V> {
 
     @Override
     public int size() {
-        // todo
-        throw new UnsupportedOperationException();
+        return client.size();
     }
 
     @Override
     public boolean isEmpty() {
-        // todo
-        throw new UnsupportedOperationException();
+        return client.size() == 0;
     }
 
     @Override
     public boolean containsKey(Object key) {
-        // todo
-        throw new UnsupportedOperationException();
+        return client.get(key.toString()) != null;
     }
 
     @Override
@@ -53,21 +51,22 @@ public class RaftyMap<K, V> implements DistributedMap<K, V> {
 
     @Override
     public V get(Object key) {
-        // todo
-        throw new UnsupportedOperationException();
+        return (V) client.get(key.toString());
     }
 
     @Nullable
     @Override
     public V put(K key, V value) {
-        // todo
-        throw new UnsupportedOperationException();
+        V result = (V) client.get(key.toString());
+        client.store(key.toString(), value.toString());
+        return result;
     }
 
     @Override
     public V remove(Object key) {
-        // todo
-        throw new UnsupportedOperationException();
+        V result = (V) client.get(key.toString());
+        client.remove(key.toString());
+        return result;
     }
 
     @Override
@@ -109,19 +108,22 @@ public class RaftyMap<K, V> implements DistributedMap<K, V> {
 
     @Override
     public boolean remove(@NotNull Object key, Object value) {
-        // todo
-        throw new UnsupportedOperationException();
+        return client.remove(key.toString());
     }
 
     @Override
     public boolean replace(@NotNull K key, @NotNull V oldValue, @NotNull V newValue) {
-        // todo
-        throw new UnsupportedOperationException();
+        if (oldValue.equals(client.get(key.toString()))) {
+            return client.store(key.toString(), newValue.toString());
+        } else {
+            return false;
+        }
     }
 
     @Override
     public V replace(@NotNull K key, @NotNull V value) {
-        // todo
-        throw new UnsupportedOperationException();
+        V result = (V) client.get(key.toString());
+        client.store(key.toString(), value.toString());
+        return result;
     }
 }

@@ -11,8 +11,10 @@ import org.junit.Test;
 public class RaftyTest {
     @Test
     public void test() {
-        try (Rafty rafty = Rafty.connect(Endpoint.of(":9990"))) {
+        try (Rafty rafty = Rafty.create(Endpoint.of(":9990"))) {
             RaftyMap<String, String> map = rafty.subscribe("test");
+//            map.put("k1", "v1");
+//            System.out.println(map.get("k1"));
             Assert.assertNotNull(map);
         }
     }
