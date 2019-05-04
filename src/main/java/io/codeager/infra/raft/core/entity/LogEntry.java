@@ -2,16 +2,15 @@ package io.codeager.infra.raft.core.entity;
 
 
 import com.google.protobuf.StringValue;
-import io.grpc.vote.LogEntry;
 
-public class LogEntity {
+public class LogEntry {
     private int index;
     private int term;
     private String key;
     private String value;
     private int version;
 
-    private LogEntity(int index, int term, String key, String value, int version) {
+    private LogEntry(int index, int term, String key, String value, int version) {
         this.index = index;
         this.term = term;
         this.key = key;
@@ -19,26 +18,20 @@ public class LogEntity {
         this.version = version;
     }
 
-    public static LogEntity of(int index, int term, String key, String value, int version) {
-        return new LogEntity(index, term, key, value, version);
+    public static LogEntry of(int index, int term, String key, String value, int version) {
+        return new LogEntry(index, term, key, value, version);
     }
 
-    public static LogEntity of(LogEntry logEntry) {
-        return LogEntity.of(logEntry.getIndex(), logEntry.getTerm(), logEntry.getKey(), logEntry.getValue().getValue(), logEntry.getVersion());
+    public static LogEntry of(io.grpc.vote.LogEntry logEntry) {
+        return LogEntry.of(logEntry.getIndex(), logEntry.getTerm(), logEntry.getKey(), logEntry.getValue().getValue(), logEntry.getVersion());
     }
 
-    public LogEntry toRPCEntry() {
-        if (this.value == null) {
-            return LogEntry.newBuilder().setIndex(this.index)
-                    .setTerm(this.term)
-                    .setKey(this.key)
-                    .setVersion(this.version).build();
-        }
-        return LogEntry.newBuilder().setIndex(this.index)
+    public io.grpc.vote.LogEntry toRpcEntry() {
+        io.grpc.vote.LogEntry.Builder builder = io.grpc.vote.LogEntry.newBuilder().setIndex(this.index)
                 .setTerm(this.term)
                 .setKey(this.key)
-                .setValue(StringValue.of(this.value))
-                .setVersion(this.version).build();
+                .setVersion(this.version);
+        return this.value != null ? builder.setValue(StringValue.of(this.value)).build() : builder.build();
     }
 
     public String getValue() {

@@ -4,13 +4,14 @@ package io.codeager.infra.raft.core;
 import com.google.protobuf.StringValue;
 import io.codeager.infra.raft.conf.Configuration;
 import io.codeager.infra.raft.core.entity.Endpoint;
-import io.codeager.infra.raft.core.entity.LogEntity;
+import io.codeager.infra.raft.core.entity.LogEntry;
 import io.codeager.infra.raft.core.rpc.Client;
 import io.codeager.infra.raft.core.rpc.Server;
 import io.codeager.infra.raft.core.util.NodeTimer;
-import io.grpc.vote.*;
+import io.grpc.vote.DataEntry;
+import io.grpc.vote.UpdateLogRequest;
+import io.grpc.vote.VoteRequest;
 
-import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -23,72 +24,84 @@ import java.util.Random;
 public class LocalNode extends NodeBase {
     private Configuration configuration;
     private StateMachine stateMachine;
+    private Random random;
+    private Server server;
+    private RemoteNode leader;
     private List<RemoteNode> peers;
-    private Server server; // todo
-    public NodeTimer voteTimer;
-    public NodeTimer waitTimer;
-    public NodeTimer heartbeatTimer;
-    public RemoteNode leader;
+    private NodeTimer voteTimer;
+    private NodeTimer waitTimer;
+    private NodeTimer heartbeatTimer;
+    // todo: move internal kv engine (stateMachine.internalMap) outside.
 
     public LocalNode(String id, String name, Endpoint endpoint, int[] peers) {
         super(id, name, endpoint);
+        this.random = new Random();
         this.server = new Server(this);
         this.peers = new ArrayList<>();
         for (int port : peers) {
             this.peers.add(new RemoteNode(" ", " ", null, new Client("127.0.0.1", port)));
         }
-        this.waitTimer = new NodeTimer(this, "waitTimer", 40000) {
-            @Override
-            protected void onTrigger() {
-                this.node.changeState(StateMachine.Role.CANDIDATE);
-                this.stop();
-            }
-        };
-        this.voteTimer = new NodeTimer(this, "voteTimer", new Random().nextInt(10000)) {
-            @Override
-            protected void onTrigger() {
-                this.node.checkVoteResult();
-            }
-        };
-        this.heartbeatTimer = new NodeTimer(this, "heartbeatTimer", new Random().nextInt(10000)) {
-            @Override
-            protected void onTrigger() {
-                this.node.sendHeartbeat();
-            }
-        };
+        this.initTimers();
     }
-
-
-    public RemoteNode getLeader() {
-        return leader;
-    }
-
-    public StateMachine getStateMachine() {
-        return stateMachine;
-    }
-
-    public void setStateMachine(StateMachine stateMachine) {
-        this.stateMachine = stateMachine;
-    }
-
-    //    public LocalNode(String id, String name, URL url, int[] peers) {
-//        this(id, name, url, peers, new StateMachine(this));
-////        StateMachine stateMachine = new StateMachine(this);
-//
-//    }
-
 
     public void resetWaitTimer() {
-        this.waitTimer.reset(10000 + new Random().nextInt(5000));
+        this.waitTimer.reset(10000 + random.nextInt(5000)); // todo: read from configuration
+    }
+
+    public boolean store(String key, String value) {
+        StateMachine.State state = this.stateMachine.getState();
+        List<LogEntry> logEntities = state.getLog();
+        //todo version is not used currently
+        LogEntry newLogEntry = LogEntry.of(state.index + 1, state.term, key, value, 0);
+        //when log is empty, which means the kv system is new. so it doesn't need to ask for commit
+        if (logEntities.size() == 0 || askCommit()) {
+            DataEntry dataEntry = DataEntry.newBuilder().setKey(key).setValue(StringValue.of(value)).build();
+            UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
+                    .setLogEntry(newLogEntry.toRpcEntry())
+                    .setEntry(dataEntry).build();
+            for (RemoteNode peer : peers) {
+                peer.appendEntry(appendLogRequest);
+            }
+            this.appendEntry(newLogEntry, value);
+            return true;
+
+        }
+        return false;
+    }
+
+    public boolean remove(String key) {
+        StateMachine.State state = this.stateMachine.getState();
+        List<LogEntry> logEntities = state.getLog();
+        //todo version is not used currently
+        LogEntry newLogEntry = LogEntry.of(state.index + 1, state.term, key, null, 0);
+        if (logEntities.size() == 0 || askCommit()) {
+//            DataEntry dataEntry  = DataEntry.newBuilder().setKey(key).build();
+            UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
+                    .setLogEntry(newLogEntry.toRpcEntry()).build();
+            for (RemoteNode peer : peers) {
+                peer.appendEntry(appendLogRequest);
+            }
+            return this.appendEntry(newLogEntry, null);
+        }
+        return false;
+    }
+
+    void askForVote() {
+        VoteRequest voteRequest = VoteRequest.newBuilder().setTerm(this.stateMachine.getState().term).build();
+        for (RemoteNode peer : this.peers) {
+            if (peer.askForVote(voteRequest)) {
+                this.stateMachine.getState().votes++;
+            }
+        }
     }
 
     public boolean askCommit() {
         int count = 0;
         StateMachine.State state = this.stateMachine.getState();
-        List<LogEntity> logEntities = state.getLog();
+        List<LogEntry> logEntities = state.getLog();
         if (logEntities.size() > 0) {
-            LogEntity preLogEntity = logEntities.get(logEntities.size() - 1);
-            UpdateLogRequest updateLogRequest = UpdateLogRequest.newBuilder().setLogEntry(preLogEntity.toRPCEntry()).build();
+            LogEntry preLogEntry = logEntities.get(logEntities.size() - 1);
+            UpdateLogRequest updateLogRequest = UpdateLogRequest.newBuilder().setLogEntry(preLogEntry.toRpcEntry()).build();
             for (RemoteNode peer : peers) {
                 if (peer.updateLog(updateLogRequest)) {
                     count++;
@@ -98,151 +111,87 @@ public class LocalNode extends NodeBase {
         return count > peers.size() / 2;
     }
 
-    public boolean store(String key, String value) {
-        StateMachine.State state = this.stateMachine.getState();
-        List<LogEntity> logEntities = state.getLog();
-        //todo version is not used currently
-        LogEntity newLogEntity = LogEntity.of(state.index + 1, state.term, key, value, 0);
-        //when log is empty, which means the kv system is new. so it doesn't need to ask for commit
-        if (logEntities.size() == 0 || askCommit()) {
-            DataEntry dataEntry = DataEntry.newBuilder().setKey(key).setValue(StringValue.of(value)).build();
-            UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
-                    .setLogEntry(newLogEntity.toRPCEntry())
-                    .setEntry(dataEntry).build();
-            for (RemoteNode peer : peers) {
-                peer.appendEntry(appendLogRequest);
-            }
-            this.appendEntry(newLogEntity, value);
-            return true;
-
-        }
-        return false;
-    }
-
-    public boolean remove(String key) {
-        StateMachine.State state = this.stateMachine.getState();
-        List<LogEntity> logEntities = state.getLog();
-        //todo version is not used currently
-        LogEntity newLogEntity = LogEntity.of(state.index + 1, state.term, key, null, 0);
-        if (logEntities.size() == 0 || askCommit()) {
-//            DataEntry dataEntry  = DataEntry.newBuilder().setKey(key).build();
-            UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
-                    .setLogEntry(newLogEntity.toRPCEntry()).build();
-            for (RemoteNode peer : peers) {
-                peer.appendEntry(appendLogRequest);
-            }
-            this.appendEntry(newLogEntity, null);
-            return true;
-
-        }
-        return false;
-    }
-
-    void askForVote() {
-        VoteRequest voteRequest = VoteRequest.newBuilder().setTerm(this.stateMachine.getState().term).build();
-        for (RemoteNode peer : this.getPeers()) {
-            if (peer.askForVote(voteRequest)) {
-                this.stateMachine.getState().votes++;
-            }
-        }
-
-    }
-
-
     void sendHeartbeat() {
-        List<LogEntity> log = this.stateMachine.getState().getLog();
+        List<LogEntry> log = this.stateMachine.getState().getLog();
         for (RemoteNode peer : peers) {
             int index = log.size() - 1;
             peer.setIndex(index);
             UpdateLogRequest.Builder updateLogRequestBuilder = UpdateLogRequest.newBuilder().setId(this.getId());
 
             if (index >= 0) {
-                updateLogRequestBuilder.setLogEntry(log.get(index).toRPCEntry());
+                updateLogRequestBuilder.setLogEntry(log.get(index).toRpcEntry());
             }
             boolean flag = false;
             while (!peer.updateLog(updateLogRequestBuilder.build()) && index >= 0) {
                 peer.setIndex(index);
-                updateLogRequestBuilder.setLogEntry(log.get(index).toRPCEntry());
+                updateLogRequestBuilder.setLogEntry(log.get(index).toRpcEntry());
                 index--;
                 flag = true;
             }
             while (flag && index < this.stateMachine.getState().getLog().size() - 1) {
                 index++;
                 peer.setIndex(index);
-                updateLogRequestBuilder.setLogEntry(log.get(index).toRPCEntry());
+                updateLogRequestBuilder.setLogEntry(log.get(index).toRpcEntry());
                 //todo: if i want to recover follower's data, how can i get K V in specific version
                 DataEntry dataEntry = DataEntry.newBuilder().setKey(log.get(index).getKey()).setValue(StringValue.of(log.get(index).getValue())).build();
                 updateLogRequestBuilder.setEntry(dataEntry);
                 peer.appendEntry(updateLogRequestBuilder.build());
             }
-
         }
     }
 
-    synchronized void checkVoteResult() {
+    void checkVoteResult() {
         this.voteTimer.stop();
         if (this.stateMachine.getState().votes > (this.peers.size() / 2)) {
-            synchronized (this) {
-                if (this.stateMachine.getState().role == StateMachine.Role.CANDIDATE)
+            synchronized (this.stateMachine.lock) {
+                if (this.stateMachine.onState(StateMachine.Role.CANDIDATE))
                     this.stateMachine.setRole(StateMachine.Role.LEADER);
             }
-
         }
     }
 
     public String get(String key) {
-        return this.stateMachine.kvdb.get(key);
+        return this.stateMachine.internalMap.get(key);
     }
 
-    public void recover(LogEntity logEntity) {
-        int curIndex = logEntity.getIndex() + 1;
-        List<LogEntity> selfLogs = this.stateMachine.getState().getLog();
+    public void recover(LogEntry logEntry) {
+        int curIndex = logEntry.getIndex() + 1;
+        List<LogEntry> selfLogs = this.stateMachine.getState().getLog();
         for (int i = curIndex; i < selfLogs.size(); i++) {
-            this.stateMachine.kvdb.revoke(selfLogs.get(i).getKey());
+            this.stateMachine.internalMap.revoke(selfLogs.get(i).getKey());
         }
     }
 
     public boolean handleVoteRequest(int voteTerm) {
         if (voteTerm >= this.stateMachine.getState().term) {
-            synchronized (this) {
+            synchronized (this.stateMachine.lock) {
                 this.stateMachine.getState().role = StateMachine.Role.FOLLOWER;
             }
-
         }
         return voteTerm >= this.stateMachine.getState().term;
     }
 
-    private void changeState(StateMachine.Role role) {
-        this.stateMachine.setRole(role);
-        synchronized (this.stateMachine) {
-            this.stateMachine.notifyAll();
-        }
-
-    }
-
     public int size() {
-        return this.stateMachine.getKvdb().size();
+        return this.stateMachine.getInternalMap().size();
     }
 
-
-    public boolean checkLog(LogEntity logEntity, String id) {
-        if (logEntity.getIndex() < this.stateMachine.getState().getLog().size()) {
+    public boolean checkLog(LogEntry logEntry, String id) {
+        if (logEntry.getIndex() < this.stateMachine.getState().getLog().size()) {
             for (RemoteNode peer : peers) {
                 if (peer.getId().equals(id)) {
                     this.leader = peer;
                 }
             }
-            return this.stateMachine.getState().getLog().get(logEntity.getIndex()).getTerm() == logEntity.getTerm();
+            return this.stateMachine.getState().getLog().get(logEntry.getIndex()).getTerm() == logEntry.getTerm();
         }
         return false;
     }
 
-    public boolean appendEntry(LogEntity logEntity, String value) {
-
+    public boolean appendEntry(LogEntry logEntry, String value) {
         if (value == null) {
-            return this.stateMachine.removeEntry(logEntity);
+            return this.stateMachine.removeEntry(logEntry);
         }
-        return this.stateMachine.appendEntry(logEntity, value);
+        return this.stateMachine.appendEntry(logEntry, value);
     }
 
     public void start(StateMachine stateMachine) {
@@ -264,50 +213,51 @@ public class LocalNode extends NodeBase {
         start(new StateMachine(this));
     }
 
-    public static void main(String... args) throws MalformedURLException {
-        LocalNode node1 = new LocalNode(" ", "no1", Endpoint.of("127.0.0.1", 5001), new int[]{5002, 5003});
-        StateMachine stateMachine1 = new StateMachine(node1);
-        node1.setStateMachine(stateMachine1);
-        node1.start(stateMachine1);
-
-//        LocalNode node2 = new LocalNode(" ", "no2", Endpoint.of("127.0.0.1",5002), new int[]{5001, 5003});
-//        StateMachine stateMachine2 = new StateMachine(node2);
-//        node2.setStateMachine(stateMachine2);
-//        node2.start(stateMachine2);
-//
-//        LocalNode node3 = new LocalNode(" ", "no3", Endpoint.of("127.0.0.1", 5003), new int[]{5002, 5001});
-//        StateMachine stateMachine3 = new StateMachine(node3);
-//        node3.setStateMachine(stateMachine3);
-//        node3.start(stateMachine3);
-////
-        Client client = new Client("127.0.0.1", 5001);
-//        String value2 = client.get(GetRequest.newBuilder().setKey("2").build());
-//        System.out.println(value2);
-//        boolean status = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("1").setValue(StringValue.of("3")).build()).build());
-//        System.out.println(status);
-//        boolean status1 = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("2").setValue(StringValue.of("4")).build()).build());
-//        System.out.println(status1);
-//        String value3 = client.get(GetRequest.newBuilder().setKey("2").build());
-//        System.out.println(value3);
-//        boolean status2 = client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("1").build()).build());
-//        System.out.println(status2);
-//        String value4 = client.get(GetRequest.newBuilder().setKey("2").build());
-//        System.out.println(value4);
-        boolean status3 = client.remove(RemoveRequest.newBuilder().setKey("1").build());
-        System.out.println(status3);
-//
-//
-//
-//        String value5 = client.get(GetRequest.newBuilder().setKey("2").build());
-//        System.out.println(value5);
-//        int size = client.size(SizeRequest.newBuilder().build());
-//        System.out.println(size);
-        String value5 = client.get(GetRequest.newBuilder().setKey("1").build());
-        System.out.println(value5);
+    public StateMachine getStateMachine() {
+        return stateMachine;
     }
 
-    public List<RemoteNode> getPeers() {
-        return peers;
+    public RemoteNode getLeader() {
+        return leader;
+    }
+
+    public NodeTimer getVoteTimer() {
+        return voteTimer;
+    }
+
+    public NodeTimer getWaitTimer() {
+        return waitTimer;
+    }
+
+    public NodeTimer getHeartbeatTimer() {
+        return heartbeatTimer;
+    }
+
+    private void becomeCandidate() {
+        this.stateMachine.setRole(StateMachine.Role.CANDIDATE);
+        synchronized (this.stateMachine.lock) {
+            this.stateMachine.notifyAll();
+        }
+    }
+
+    private void initTimers() {
+        this.waitTimer = new NodeTimer(this, "waitTimer", configuration.origin.waitTimeout) {
+            protected void onTrigger() {
+                this.node.becomeCandidate();
+                this.stop();
+            }
+        };
+        this.voteTimer = new NodeTimer(this, "voteTimer", random.nextInt(configuration.origin.voteTimeout)) {
+            @Override
+            protected void onTrigger() {
+                this.node.checkVoteResult();
+            }
+        };
+        this.heartbeatTimer = new NodeTimer(this, "heartbeatTimer", random.nextInt(configuration.origin.heartbeatTimeout)) {
+            protected void onTrigger() {
+                this.node.sendHeartbeat();
+            }
+        };
     }
 
     class ServerContainer implements Runnable {
