@@ -102,7 +102,7 @@ public class RevocableMapAdapter<K, V> implements RevocableMap<K, V> {
     }
 
     @Override
-    public Map<K, RevisionNode<V>> intern() {
+    public String intern() {
         Map<K, RevisionNode<V>> viewport = new ConcurrentHashMap<>();
         RevisionNode<V> node;
         synchronized (this) {
@@ -111,7 +111,7 @@ public class RevocableMapAdapter<K, V> implements RevocableMap<K, V> {
                 viewport.put(entry.getKey(), node);
             }
         }
-        return viewport;
+        return viewport.toString();
     }
 
     public RevocableMapAdapter(ConcurrentMap<K, byte[]> emptyMap) {
