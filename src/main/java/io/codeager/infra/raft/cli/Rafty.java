@@ -36,9 +36,13 @@ public class Rafty implements Closeable {
         return map(name);
     }
 
+    public <K, V> RaftyMap<K, V> map() {
+        return map(null);
+    }
+
     public <K, V> RaftyMap<K, V> map(String name) {
         if (!channels.containsKey(name)) {
-            channels.put(name, createMap(name, this.client));
+            channels.put(name, createMap(name, client));
         }
         return (RaftyMap<K, V>) channels.get(name);
     }

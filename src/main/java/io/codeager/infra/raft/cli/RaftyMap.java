@@ -5,6 +5,8 @@ import io.codeager.infra.raft.Experimental;
 import io.codeager.infra.raft.cli.rpc.Client;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Map;
@@ -16,11 +18,19 @@ import java.util.Set;
  */
 @Experimental(Experimental.Statement.TODO_TEST)
 public class RaftyMap<K, V> implements DistributedMap<K, V> {
+    public static final Logger LOG = LoggerFactory.getLogger(RaftyMap.class);
+
     private String name;
+    private String prefix;
     private Client client;
 
     RaftyMap(String name, Client client) {
+        if (name != null) {
+            LOG.info("channelled map is not fully functional");
+        }
+
         this.name = name;
+        this.prefix = (name != null && name.length() > 0) ? name.concat(":") : "";
         this.client = client;
     }
 
