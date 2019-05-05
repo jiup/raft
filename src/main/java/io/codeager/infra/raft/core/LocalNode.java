@@ -10,6 +10,7 @@ import io.codeager.infra.raft.core.rpc.Server;
 import io.codeager.infra.raft.core.util.NodeTimer;
 import io.codeager.infra.raft.storage.RevocableMap;
 import io.codeager.infra.raft.storage.RevocableMapAdapter;
+import io.codeager.infra.raft.util.ConfigurationHelper;
 import io.grpc.vote.DataEntry;
 import io.grpc.vote.UpdateLogRequest;
 import io.grpc.vote.VoteRequest;
@@ -73,11 +74,12 @@ public class LocalNode extends NodeBase {
         };
         this.internalMap = new RevocableMapAdapter<>(new ConcurrentHashMap<String, byte[]>());
         this.idSending = new HashSet<>();
+        this.configuration = configuration;
     }
 
     public void resetWaitTimer() {
-        System.err.println("rest the waitTimer");
-        this.waitTimer.reset(12000 + random.nextInt(5000)); // todo: read from configuration
+        LOG.debug("Get package from Leader, reset the WaitTimer");
+        this.waitTimer.reset(this.configuration.origin.heartbeatTimeout + 1000 + random.nextInt(5000)); // todo: read from configuration
     }
 
     public void initPeersId() {
@@ -150,6 +152,7 @@ public class LocalNode extends NodeBase {
     }
 
     void askForVote() {
+        LOG.info("ask for vote");
         VoteRequest voteRequest = VoteRequest.newBuilder().setTerm(this.stateMachine.getState().term).build();
         try {
             for (RemoteNode peer : this.peers) {
@@ -190,6 +193,7 @@ public class LocalNode extends NodeBase {
     }
 
     void checkVoteResult() {
+        LOG.debug("get {} votes", this.stateMachine.getState().votes);
         this.voteTimer.stop();
         if (this.stateMachine.getState().votes > (this.peers.size() / 2)) {
             synchronized (this.stateMachine) {
@@ -202,10 +206,12 @@ public class LocalNode extends NodeBase {
     }
 
     public String get(String key) {
+        LOG.info("get key = {}", key);
         return this.internalMap.get(key);
     }
 
     public void recover(LogEntry logEntry) {
+        LOG.info("Begin to recover log");
         int curIndex = logEntry.getIndex() + 1;
         List<LogEntry> selfLogs = this.stateMachine.getState().getLog();
         for (int i = curIndex; i < selfLogs.size(); i++) {
@@ -214,6 +220,7 @@ public class LocalNode extends NodeBase {
     }
 
     public boolean handleVoteRequest(int voteTerm) {
+        LOG.info("vote term is {}, my term is {}", voteTerm, this.stateMachine.getState().term);
         if (voteTerm >= this.stateMachine.getState().term) {
             synchronized (this.stateMachine) {
                 this.stateMachine.getState().role = StateMachine.Role.FOLLOWER;
@@ -223,22 +230,41 @@ public class LocalNode extends NodeBase {
     }
 
     public int size() {
+        LOG.info("get size");
         return this.internalMap.size();
     }
 
+    public Collection<String> getValues() {
+        LOG.info("get values");
+        return this.internalMap.values();
+    }
+
+    public Collection<String> getKeys() {
+        LOG.info("get keys");
+        return this.internalMap.keySet();
+    }
+
+    public Collection<Map.Entry<String, String>> getEntries() {
+        LOG.info("get entries");
+        return this.internalMap.entrySet();
+    }
+
     public boolean checkLog(LogEntry logEntry, String id) {
+        LOG.info("checking if the log is update to leader...");
         if (logEntry.getIndex() < this.stateMachine.getState().getLog().size()) {
             for (RemoteNode peer : peers) {
                 if (peer.getId().equals(id)) {
                     this.leader = peer;
                 }
             }
+
             return this.stateMachine.getState().getLog().get(logEntry.getIndex()).getTerm() == logEntry.getTerm();
         }
         return false;
     }
 
     public boolean appendEntry(LogEntry logEntry, String value) {
+        LOG.info("Updating log with leader...");
         boolean status;
         try {
             if (value == null) {
@@ -260,7 +286,9 @@ public class LocalNode extends NodeBase {
         Thread thread1 = new Thread(serverContainer);
         Thread thread2 = new Thread(this.stateMachine);
         thread2.start();
+        LOG.info("server is  started");
         thread1.start();
+        LOG.info("stateMachine is  started");
         try {
             thread2.join();
             thread1.join();
@@ -357,7 +385,7 @@ public class LocalNode extends NodeBase {
 
         @Override
         public void run() {
-            LOG.info("send heart beat to {} begin", this.peer.getId());
+            LOG.debug("before send heartbeat to {}", this.peer.getId());
             try {
                 int index = log.size() - 1;
                 peer.setIndex(index);
@@ -382,9 +410,10 @@ public class LocalNode extends NodeBase {
                     updateLogRequestBuilder.setEntry(dataEntry);
                     peer.appendEntry(updateLogRequestBuilder.build());
                 }
-                LOG.info("send heart beat to {} finish", this.peer.getId());
+                LOG.debug("sent heartbeat to {}", this.peer.getId());
             } catch (Exception e) {
-                e.printStackTrace();
+//                e.printStackTrace();
+                LOG.warn("can not send heartbeat to Node-{}", this.peer.getId());
             } finally {
                 this.localNode.moveOutFromSet(this.peer);
             }
@@ -394,11 +423,11 @@ public class LocalNode extends NodeBase {
     }
 
     public static void main(String[] args) throws IOException {
-//        Configuration configuration = ConfigurationHelper.load("config4.json");
-//        StateMachine stateMachine = new StateMachine();
-//        LocalNode node = new LocalNode(configuration, stateMachine);
-//        stateMachine.bind(node);
-//        node.start();
+        Configuration configuration = ConfigurationHelper.load("config4.json");
+        StateMachine stateMachine = new StateMachine();
+        LocalNode node = new LocalNode(configuration, stateMachine);
+        stateMachine.bind(node);
+        node.start();
 //        Client client = new Client("127.0.0.1", 5001);
 //        int size = client.size(SizeRequest.newBuilder().build());
 //        System.out.println(size);

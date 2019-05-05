@@ -9,6 +9,8 @@ import io.grpc.stub.StreamObserver;
 import io.grpc.vote.*;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Map;
 
 
 public class Server extends GreeterGrpc.GreeterImplBase {
@@ -45,7 +47,6 @@ public class Server extends GreeterGrpc.GreeterImplBase {
     @Override
     public void getId(GetIdRequest request, StreamObserver<GetIdResponse> responseObserver) {
         String id = this.node.getId();
-        System.out.println("my id is :" + id);
         GetIdResponse getIdResponse = GetIdResponse.newBuilder().setId(id).build();
         responseObserver.onNext(getIdResponse);
         responseObserver.onCompleted();
@@ -128,7 +129,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
             int size = this.node.size();
             sizeResponse = SizeResponse.newBuilder().setSize(size).build();
         } else {
-            System.out.println(this.node.getLeader());
+//            System.out.println(this.node.getLeader());
             int size = this.node.getLeader().size(request);
             sizeResponse = SizeResponse.newBuilder().setSize(size).build();
         }
@@ -173,6 +174,65 @@ public class Server extends GreeterGrpc.GreeterImplBase {
         }
         ContainsResponse containsResponse = ContainsResponse.newBuilder().setStatus(status).build();
         responseObserver.onNext(containsResponse);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void values(ValuesRequest request, StreamObserver<ValuesResponse> responseObserver) {
+        Collection<String> values;
+        ValuesResponse valuesResponse;
+        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+            values = this.node.getValues();
+            ValuesResponse.Builder builder = ValuesResponse.newBuilder();
+            int i = 0;
+            for (String value : values) {
+                builder.setValue(i++, value);
+            }
+            valuesResponse = builder.build();
+        } else {
+            valuesResponse = this.node.getLeader().getValues();
+        }
+        responseObserver.onNext(valuesResponse);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void keys(KeysRequest request, StreamObserver<KeysResponse> responseObserver) {
+        Collection<String> keys;
+        KeysResponse keysResponse;
+        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+            keys = this.node.getKeys();
+            KeysResponse.Builder builder = KeysResponse.newBuilder();
+            int i = 0;
+            for (String value : keys) {
+                builder.setKey(i++, value);
+            }
+            keysResponse = builder.build();
+        } else {
+            keysResponse = this.node.getLeader().getKeys();
+        }
+        responseObserver.onNext(keysResponse);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void entries(EntriesRequest request, StreamObserver<EntriesResponse> responseObserver) {
+        Collection<Map.Entry<String, String>> Entries;
+        EntriesResponse entriesResponse;
+        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+            Entries = this.node.getEntries();
+            EntriesResponse.Builder builder = EntriesResponse.newBuilder();
+            int i = 0;
+            for (Map.Entry entry : Entries) {
+                builder.setEntry(i++, DataEntry.newBuilder().
+                        setKey(String.valueOf(entry.getKey())).
+                        setValue(StringValue.of((String) entry.getValue())).build());
+            }
+            entriesResponse = builder.build();
+        } else {
+            entriesResponse = this.node.getLeader().getEntries();
+        }
+        responseObserver.onNext(entriesResponse);
         responseObserver.onCompleted();
     }
 }

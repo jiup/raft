@@ -70,4 +70,19 @@ public class RemoteNode extends NodeBase {
         GetIdRequest getIdRequest = GetIdRequest.newBuilder().build();
         return this.client.getRemoteId(getIdRequest);
     }
+
+    public ValuesResponse getValues() {
+        ValuesRequest valuesRequest = ValuesRequest.newBuilder().build();
+        return this.client.getValues(valuesRequest);
+    }
+
+    public KeysResponse getKeys() {
+        KeysRequest keysRequest = KeysRequest.newBuilder().build();
+        return this.client.getKeys(keysRequest);
+    }
+
+    public EntriesResponse getEntries() {
+        EntriesRequest entriesRequest = EntriesRequest.newBuilder().build();
+        return this.client.getEntries(entriesRequest);
+    }
 }

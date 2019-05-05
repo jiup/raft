@@ -74,7 +74,7 @@ public class StateMachine implements Runnable {
         }
             LOG.debug("appendEntry {}", this.state.log);
             for (LogEntry t : this.state.log) {
-                System.err.println(t.getKey() + ": " + t.getValue());
+//                System.err.println(t.getKey() + ": " + t.getValue());
             }
         return true;
     }
@@ -89,9 +89,9 @@ public class StateMachine implements Runnable {
             this.state.log.add(logEntry);
         }
         LOG.debug("appendEntry {}", this.state.log);
-        for (LogEntry t : this.state.log) {
-            System.err.println(t.getKey() + ": " + t.getValue());
-        }
+//        for (LogEntry t : this.state.log) {
+//            System.err.println(t.getKey() + ": " + t.getValue());
+//        }
         return true;
     }
 
@@ -121,9 +121,9 @@ public class StateMachine implements Runnable {
             switch (state.role) {
                 case FOLLOWER:
                     LOG.debug("switch > case > FOLLOWER");
-                    System.err.println("switch > case > FOLLOWER");
+//                    System.err.println("switch > case > FOLLOWER");
                     this.node.getWaitTimer().start();
-                    System.err.println(this.state.log);
+//                    System.err.println(this.state.log);
                     synchronized (this) {
                         try {
                             this.wait();
@@ -135,8 +135,7 @@ public class StateMachine implements Runnable {
 
                 case CANDIDATE:
                     LOG.debug("switch > case > CANDIDATE");
-                    System.err.println("switch > case > CANDIDATE");
-                    System.err.println(this.state.getLog());
+//                    System.err.println("switch > case > CANDIDATE");
                     this.state.votes = 1;
                     this.node.getVoteTimer().start();
                     this.node.askForVote();
@@ -146,7 +145,7 @@ public class StateMachine implements Runnable {
 
                 case LEADER:
                     LOG.debug("switch > case > LEADER");
-                    System.err.println("switch > case > LEADER");
+//                    System.err.println("switch > case > LEADER");
                     this.node.sendHeartbeat();
                     this.node.getHeartbeatTimer().start();
                     synchronized (this) {
