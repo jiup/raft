@@ -140,9 +140,9 @@ public class LocalNode extends NodeBase {
         if (logEntities.size() == 0 || askCommit()) {
             UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
                     .setLogEntry(newLogEntry.toRpcEntry()).build();
-            for (RemoteNode peer : peers) {
+            this.peers.parallelStream().forEach(peer -> {
                 peer.appendEntry(appendLogRequest);
-            }
+            });
             return this.appendEntry(newLogEntry, null);
         }
         return false;
