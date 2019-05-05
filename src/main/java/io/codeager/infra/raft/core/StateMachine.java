@@ -73,9 +73,6 @@ public class StateMachine implements Runnable {
             this.state.log.add(logEntry);
         }
             LOG.debug("appendEntry {}", this.state.log);
-            for (LogEntry t : this.state.log) {
-//                System.err.println(t.getKey() + ": " + t.getValue());
-            }
         return true;
     }
 
@@ -89,9 +86,6 @@ public class StateMachine implements Runnable {
             this.state.log.add(logEntry);
         }
         LOG.debug("appendEntry {}", this.state.log);
-//        for (LogEntry t : this.state.log) {
-//            System.err.println(t.getKey() + ": " + t.getValue());
-//        }
         return true;
     }
 
@@ -120,10 +114,8 @@ public class StateMachine implements Runnable {
         while (!suspend) {
             switch (state.role) {
                 case FOLLOWER:
-                    LOG.debug("switch > case > FOLLOWER");
-//                    System.err.println("switch > case > FOLLOWER");
+                    LOG.warn("update state to FOLLOWER");
                     this.node.getWaitTimer().start();
-//                    System.err.println(this.state.log);
                     synchronized (this) {
                         try {
                             this.wait();
@@ -134,8 +126,7 @@ public class StateMachine implements Runnable {
                     break;
 
                 case CANDIDATE:
-                    LOG.debug("switch > case > CANDIDATE");
-//                    System.err.println("switch > case > CANDIDATE");
+                    LOG.warn("update state to CANDIDATE");
                     this.state.votes = 1;
                     this.node.getVoteTimer().start();
                     this.node.askForVote();
@@ -144,8 +135,7 @@ public class StateMachine implements Runnable {
                     break;
 
                 case LEADER:
-                    LOG.debug("switch > case > LEADER");
-//                    System.err.println("switch > case > LEADER");
+                    LOG.warn("update state to LEADER");
                     this.node.sendHeartbeat();
                     this.node.getHeartbeatTimer().start();
                     synchronized (this) {

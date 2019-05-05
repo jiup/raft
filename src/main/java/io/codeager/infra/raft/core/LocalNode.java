@@ -115,9 +115,7 @@ public class LocalNode extends NodeBase {
             UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
                     .setLogEntry(newLogEntry.toRpcEntry())
                     .setEntry(dataEntry).build();
-            for (RemoteNode peer : peers) {
-                peer.appendEntry(appendLogRequest);
-            }
+            this.peers.parallelStream().forEach(peer -> peer.appendEntry(appendLogRequest));
             this.appendEntry(newLogEntry, value);
             return true;
 
@@ -140,7 +138,6 @@ public class LocalNode extends NodeBase {
         //todo version is not used currently
         LogEntry newLogEntry = LogEntry.of(state.index + 1, state.term, key, null, 0);
         if (logEntities.size() == 0 || askCommit()) {
-//            DataEntry dataEntry  = DataEntry.newBuilder().setKey(key).build();
             UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
                     .setLogEntry(newLogEntry.toRpcEntry()).build();
             for (RemoteNode peer : peers) {
@@ -155,30 +152,31 @@ public class LocalNode extends NodeBase {
         LOG.info("ask for vote");
         VoteRequest voteRequest = VoteRequest.newBuilder().setTerm(this.stateMachine.getState().term).build();
         try {
-            for (RemoteNode peer : this.peers) {
+            final StateMachine stateMachine = this.stateMachine;
+            this.peers.parallelStream().forEach(peer -> {
                 if (peer.askForVote(voteRequest)) {
-                    this.stateMachine.getState().votes++;
+                    stateMachine.getState().votes++;
                 }
-            }
+            });
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.error("ask vote failure: {}", e.getMessage());
         }
     }
 
     public boolean askCommit() {
-        int count = 0;
+        final int[] count = new int[1];
         StateMachine.State state = this.stateMachine.getState();
         List<LogEntry> logEntities = state.getLog();
         if (logEntities.size() > 0) {
             LogEntry preLogEntry = logEntities.get(logEntities.size() - 1);
             UpdateLogRequest updateLogRequest = UpdateLogRequest.newBuilder().setLogEntry(preLogEntry.toRpcEntry()).build();
-            for (RemoteNode peer : peers) {
+            this.peers.parallelStream().forEach(peer -> {
                 if (peer.updateLog(updateLogRequest)) {
-                    count++;
+                    count[0]++;
                 }
-            }
+            });
         }
-        return count > peers.size() / 2;
+        return count[0] > peers.size() / 2;
     }
 
     void sendHeartbeat() {
@@ -405,15 +403,13 @@ public class LocalNode extends NodeBase {
                     index++;
                     peer.setIndex(index);
                     updateLogRequestBuilder.setLogEntry(log.get(index).toRpcEntry());
-                    //todo: if i want to recover follower's data, how can i get K V in specific version
                     DataEntry dataEntry = DataEntry.newBuilder().setKey(log.get(index).getKey()).setValue(StringValue.of(log.get(index).getValue())).build();
                     updateLogRequestBuilder.setEntry(dataEntry);
                     peer.appendEntry(updateLogRequestBuilder.build());
                 }
                 LOG.debug("sent heartbeat to {}", this.peer.getId());
             } catch (Exception e) {
-//                e.printStackTrace();
-                LOG.warn("can not send heartbeat to Node-{}", this.peer.getId());
+                LOG.warn("cannot send heartbeat to node@{}", this.peer.getEndpoint());
             } finally {
                 this.localNode.moveOutFromSet(this.peer);
             }
@@ -428,17 +424,5 @@ public class LocalNode extends NodeBase {
         LocalNode node = new LocalNode(configuration, stateMachine);
         stateMachine.bind(node);
         node.start();
-//        Client client = new Client("127.0.0.1", 5001);
-//        int size = client.size(SizeRequest.newBuilder().build());
-//        System.out.println(size);
-//
-//        client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("1").setValue(StringValue.of("3")).build()).build());
-//        String res1 = client.get(GetRequest.newBuilder().setKey("1").build());
-//        System.out.println(res1);
-//
-//        client.store(StoreRequest.newBuilder().setEntry(DataEntry.newBuilder().setKey("2").setValue(StringValue.of("4")).build()).build());
-//        String res2 = client.get(GetRequest.newBuilder().setKey("2").build());
-//        System.out.println(res2);
-
     }
 }
