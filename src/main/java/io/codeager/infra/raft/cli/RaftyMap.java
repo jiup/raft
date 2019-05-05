@@ -5,6 +5,8 @@ import io.codeager.infra.raft.Experimental;
 import io.codeager.infra.raft.cli.rpc.Client;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Map;
@@ -14,18 +16,30 @@ import java.util.Set;
  * @author Jiupeng Zhang
  * @since 05/03/2019
  */
-@Experimental(Experimental.Statement.TODO)
+@Experimental(Experimental.Statement.TODO_TEST)
 public class RaftyMap<K, V> implements DistributedMap<K, V> {
+    public static final Logger LOG = LoggerFactory.getLogger(RaftyMap.class);
+
     private String name;
+    private String prefix;
     private Client client;
 
     RaftyMap(String name, Client client) {
+        if (name != null) {
+            LOG.info("channelled map is not fully functional");
+        }
+
         this.name = name;
+        this.prefix = (name != null && name.length() > 0) ? name.concat(":") : "";
         this.client = client;
     }
 
     public String getName() {
         return name;
+    }
+
+    public String getId() {
+        return client.getId();
     }
 
     @Override
@@ -40,13 +54,12 @@ public class RaftyMap<K, V> implements DistributedMap<K, V> {
 
     @Override
     public boolean containsKey(Object key) {
-        return client.get(key.toString()) != null;
+        return client.containsKey(key.toString());
     }
 
     @Override
     public boolean containsValue(Object value) {
-        // todo
-        throw new UnsupportedOperationException();
+        return client.containsValue(value.toString());
     }
 
     @Override
@@ -82,28 +95,31 @@ public class RaftyMap<K, V> implements DistributedMap<K, V> {
     @NotNull
     @Override
     public Set<K> keySet() {
-        // todo
-        throw new UnsupportedOperationException();
+        return (Set<K>) client.keySet();
     }
 
     @NotNull
     @Override
     public Collection<V> values() {
-        // todo
-        throw new UnsupportedOperationException();
+        return (Collection<V>) client.values();
     }
 
     @NotNull
     @Override
     public Set<Entry<K, V>> entrySet() {
-        // todo
-        throw new UnsupportedOperationException();
+        return client.entries();
     }
 
     @Override
     public V putIfAbsent(@NotNull K key, V value) {
-        // todo
-        throw new UnsupportedOperationException();
+        synchronized (this) {
+            if (containsKey(key)) {
+                return (V) client.get(key.toString());
+            } else {
+                client.store(key.toString(), value.toString());
+                return null;
+            }
+        }
     }
 
     @Override
