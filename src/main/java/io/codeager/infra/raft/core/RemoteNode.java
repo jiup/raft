@@ -55,4 +55,19 @@ public class RemoteNode extends NodeBase {
     public boolean remove(RemoveRequest removeRequest) {
         return this.client.remove(removeRequest);
     }
+
+    public boolean containsKey(String key) {
+        ContainsRequest containsRequest = ContainsRequest.newBuilder().setContent(key).build();
+        return this.client.containsKey(containsRequest);
+    }
+
+    public boolean containsValue(String value) {
+        ContainsRequest containsRequest = ContainsRequest.newBuilder().setContent(value).build();
+        return this.client.containsValue(containsRequest);
+    }
+
+    public String getRemoteId() {
+        GetIdRequest getIdRequest = GetIdRequest.newBuilder().build();
+        return this.client.getRemoteId(getIdRequest);
+    }
 }

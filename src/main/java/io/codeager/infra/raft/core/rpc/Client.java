@@ -57,6 +57,21 @@ public class Client {
         return removeResponse.getStatus();
     }
 
+    public boolean containsKey(ContainsRequest containsRequest) {
+        ContainsResponse containsResponse = blockingStub.containsKey(containsRequest);
+        return containsResponse.getStatus();
+    }
+
+    public boolean containsValue(ContainsRequest containsRequest) {
+        ContainsResponse containsResponse = blockingStub.containsKey(containsRequest);
+        return containsResponse.getStatus();
+    }
+
+    public String getRemoteId(GetIdRequest getIdRequest) {
+        GetIdResponse getIdResponse = blockingStub.getId(getIdRequest);
+        return getIdResponse.getId();
+    }
+
     public void shutdown() throws InterruptedException {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }

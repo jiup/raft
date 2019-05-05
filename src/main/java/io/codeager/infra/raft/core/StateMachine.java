@@ -2,15 +2,12 @@ package io.codeager.infra.raft.core;
 
 import io.codeager.infra.raft.Experimental;
 import io.codeager.infra.raft.core.entity.LogEntry;
-import io.codeager.infra.raft.storage.RevocableMap;
-import io.codeager.infra.raft.storage.RevocableMapAdapter;
 import org.apache.commons.lang.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author Jiupeng Zhang
@@ -19,7 +16,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Experimental(Experimental.Statement.NOT_FULLY_DESIGNED)
 public class StateMachine implements Runnable {
     public static final Logger LOG = LoggerFactory.getLogger(StateMachine.class);
-
     public enum Role {
         FOLLOWER,
         CANDIDATE,
@@ -28,7 +24,7 @@ public class StateMachine implements Runnable {
 
     private State state;
     private LocalNode node;
-    RevocableMap<String, String> internalMap;
+
     private volatile boolean suspend;
 
     public static class State {
@@ -69,7 +65,6 @@ public class StateMachine implements Runnable {
     }
 
     public boolean appendEntry(LogEntry logEntry, String value) {
-        boolean status;
         this.state.term = logEntry.getTerm();
         this.state.index = logEntry.getIndex();
         if (logEntry.getIndex() < this.state.getLog().size()) {
@@ -77,21 +72,15 @@ public class StateMachine implements Runnable {
         } else {
             this.state.log.add(logEntry);
         }
-        try {
-            this.internalMap.put(logEntry.getKey(), value);
             LOG.debug("appendEntry {}", this.state.log);
             for (LogEntry t : this.state.log) {
                 System.err.println(t.getKey() + ": " + t.getValue());
             }
-            status = true;
-        } catch (Exception e) {
-            status = false;
-        }
-        return status;
+        return true;
     }
 
+
     public boolean removeEntry(LogEntry logEntry) {
-        boolean status;
         this.state.term = logEntry.getTerm();
         this.state.index = logEntry.getIndex();
         if (logEntry.getIndex() < this.state.getLog().size()) {
@@ -99,17 +88,11 @@ public class StateMachine implements Runnable {
         } else {
             this.state.log.add(logEntry);
         }
-        try {
-            this.internalMap.remove(logEntry.getKey());
-            LOG.debug("appendEntry {}", this.state.log);
-            for (LogEntry t : this.state.log) {
-                System.err.println(t.getKey() + ": " + t.getValue());
-            }
-            status = true;
-        } catch (Exception e) {
-            status = false;
+        LOG.debug("appendEntry {}", this.state.log);
+        for (LogEntry t : this.state.log) {
+            System.err.println(t.getKey() + ": " + t.getValue());
         }
-        return status;
+        return true;
     }
 
     public StateMachine() {
@@ -123,7 +106,7 @@ public class StateMachine implements Runnable {
     public StateMachine(LocalNode localNode, State initialState) {
         this.node = localNode;
         this.state = initialState;
-        this.internalMap = new RevocableMapAdapter<>(new ConcurrentHashMap<String, byte[]>());
+
     }
 
     public void bind(LocalNode node) {
@@ -132,6 +115,8 @@ public class StateMachine implements Runnable {
 
     @Override
     public void run() {
+
+
         while (!suspend) {
             switch (state.role) {
                 case FOLLOWER:
@@ -176,9 +161,6 @@ public class StateMachine implements Runnable {
         }
     }
 
-    public RevocableMap<String, String> getInternalMap() {
-        return internalMap;
-    }
 
     public void setRole(Role role) {
         this.state.role = role;

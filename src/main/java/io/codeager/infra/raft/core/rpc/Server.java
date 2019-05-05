@@ -21,6 +21,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     public void start() throws IOException {
         server = ServerBuilder.forPort(this.node.getEndpoint().getPort()).addService(this).build().start();
+        this.node.initPeersId();
     }
 
     public void blockUntilShutdown() throws InterruptedException {
@@ -38,6 +39,15 @@ public class Server extends GreeterGrpc.GreeterImplBase {
         boolean status = this.node.handleVoteRequest(request.getTerm());
         VoteReply voteReply = VoteReply.newBuilder().setStatus(status).build();
         responseObserver.onNext(voteReply);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getId(GetIdRequest request, StreamObserver<GetIdResponse> responseObserver) {
+        String id = this.node.getId();
+        System.out.println("my id is :" + id);
+        GetIdResponse getIdResponse = GetIdResponse.newBuilder().setId(id).build();
+        responseObserver.onNext(getIdResponse);
         responseObserver.onCompleted();
     }
 
@@ -118,7 +128,8 @@ public class Server extends GreeterGrpc.GreeterImplBase {
             int size = this.node.size();
             sizeResponse = SizeResponse.newBuilder().setSize(size).build();
         } else {
-            int size = this.node.getLeader().size(SizeRequest.newBuilder().build());
+            System.out.println(this.node.getLeader());
+            int size = this.node.getLeader().size(request);
             sizeResponse = SizeResponse.newBuilder().setSize(size).build();
         }
         responseObserver.onNext(sizeResponse);
@@ -136,6 +147,32 @@ public class Server extends GreeterGrpc.GreeterImplBase {
             removeResponse = RemoveResponse.newBuilder().setStatus(status).build();
         }
         responseObserver.onNext(removeResponse);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void containsKey(ContainsRequest request, StreamObserver<ContainsResponse> responseObserver) {
+        boolean status;
+        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+            status = this.node.containsKey(request.getContent());
+        } else {
+            status = this.node.getLeader().containsKey(request.getContent());
+        }
+        ContainsResponse containsResponse = ContainsResponse.newBuilder().setStatus(status).build();
+        responseObserver.onNext(containsResponse);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void containsValue(ContainsRequest request, StreamObserver<ContainsResponse> responseObserver) {
+        boolean status;
+        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+            status = this.node.containsValue(request.getContent());
+        } else {
+            status = this.node.getLeader().containsValue(request.getContent());
+        }
+        ContainsResponse containsResponse = ContainsResponse.newBuilder().setStatus(status).build();
+        responseObserver.onNext(containsResponse);
         responseObserver.onCompleted();
     }
 }
