@@ -235,4 +235,18 @@ public class Server extends GreeterGrpc.GreeterImplBase {
         responseObserver.onNext(entriesResponse);
         responseObserver.onCompleted();
     }
+
+    @Override
+    public void command(CommandRequest request, StreamObserver<CommandResponse> responseObserver) {
+        //todo
+        if (request.getCommand().equals("STOP")) {
+            this.node.stop();
+        } else if (request.getCommand().equals("PAUSE")) {
+            this.node.pause();
+        } else if (request.getCommand().equals("RESUME")) {
+            this.node.resume();
+        }
+        responseObserver.onNext(CommandResponse.newBuilder().build());
+        responseObserver.onCompleted();
+    }
 }

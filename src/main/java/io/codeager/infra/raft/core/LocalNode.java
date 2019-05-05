@@ -8,6 +8,7 @@ import io.codeager.infra.raft.core.entity.LogEntry;
 import io.codeager.infra.raft.core.rpc.Client;
 import io.codeager.infra.raft.core.rpc.Server;
 import io.codeager.infra.raft.core.util.NodeTimer;
+import io.codeager.infra.raft.storage.KvEngine;
 import io.codeager.infra.raft.storage.RevocableMap;
 import io.codeager.infra.raft.storage.RevocableMapAdapter;
 import io.codeager.infra.raft.util.ConfigurationHelper;
@@ -17,11 +18,14 @@ import io.grpc.vote.VoteRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import static io.codeager.infra.raft.conf.Configuration.Mode.PROTECTED;
 
 
 /**
@@ -31,6 +35,7 @@ import java.util.concurrent.Executors;
 public class LocalNode extends NodeBase {
     public static final Logger LOG = LoggerFactory.getLogger(LocalNode.class);
 
+    RevocableMap<String, Object> settingsMap;
     RevocableMap<String, String> internalMap;
     private final StateMachine stateMachine;
     private Configuration configuration;
@@ -72,9 +77,27 @@ public class LocalNode extends NodeBase {
                 this.node.sendHeartbeat();
             }
         };
-        this.internalMap = new RevocableMapAdapter<>(new ConcurrentHashMap<String, byte[]>());
+        this.settingsMap = new RevocableMapAdapter<>(new KvEngine(new File("logs")).map("default"));
+
+        if (configuration.mode == PROTECTED) {
+            LOG.info("Start in protected mode");
+            //todo load database
+            File file = new File("DBfile");
+            if (file.exists()) {
+                this.internalMap = new RevocableMapAdapter<>(new KvEngine(file).map("default"));
+                loadLog();
+            } else {
+                this.internalMap = new RevocableMapAdapter<>(new KvEngine().map("default"));
+            }
+
+        } else {
+            LOG.info("Start in debug mode");
+            this.internalMap = new RevocableMapAdapter<>(new KvEngine().map("default"));
+        }
+
         this.idSending = new HashSet<>();
         this.configuration = configuration;
+
     }
 
     public void resetWaitTimer() {
@@ -115,12 +138,31 @@ public class LocalNode extends NodeBase {
             UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
                     .setLogEntry(newLogEntry.toRpcEntry())
                     .setEntry(dataEntry).build();
-            this.peers.parallelStream().forEach(peer -> peer.appendEntry(appendLogRequest));
+            this.peers.parallelStream().forEach(
+                    peer -> {
+                        try {
+                            peer.appendEntry(appendLogRequest);
+                        } catch (Exception e) {
+                            LOG.error("storing, append entry to node:{} failure: {}", peer.getId(), e.getMessage());
+                        }
+
+                    }
+            );
             this.appendEntry(newLogEntry, value);
             return true;
 
         }
         return false;
+    }
+
+    public void loadLog() {
+        List<LogEntry> log = (List<LogEntry>) settingsMap.get("logs");
+        if (!log.isEmpty()) {
+            this.stateMachine.getState().setLog(log);
+            this.stateMachine.getState().index = log.get(log.size() - 1).getIndex();
+            this.stateMachine.getState().term = log.get(log.size() - 1).getTerm();
+            LOG.info("Load log size : {}, index: {}, index: {}", log.size(), this.stateMachine.getState().index, this.stateMachine.getState().term);
+        }
     }
 
 
@@ -141,7 +183,12 @@ public class LocalNode extends NodeBase {
             UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
                     .setLogEntry(newLogEntry.toRpcEntry()).build();
             this.peers.parallelStream().forEach(peer -> {
-                peer.appendEntry(appendLogRequest);
+                try {
+                    peer.appendEntry(appendLogRequest);
+                } catch (Exception e) {
+                    LOG.error("removing, append entry to node:{} failure: {}", peer.getId(), e.getMessage());
+                }
+
             });
             return this.appendEntry(newLogEntry, null);
         }
@@ -151,16 +198,16 @@ public class LocalNode extends NodeBase {
     void askForVote() {
         LOG.info("ask for vote");
         VoteRequest voteRequest = VoteRequest.newBuilder().setTerm(this.stateMachine.getState().term).build();
-        try {
-            final StateMachine stateMachine = this.stateMachine;
-            this.peers.parallelStream().forEach(peer -> {
+        final StateMachine stateMachine = this.stateMachine;
+        this.peers.parallelStream().forEach(peer -> {
+            try {
                 if (peer.askForVote(voteRequest)) {
                     stateMachine.getState().votes++;
                 }
-            });
-        } catch (Exception e) {
-            LOG.error("ask vote failure: {}", e.getMessage());
-        }
+            } catch (Exception e) {
+                LOG.error("ask vote failure: {}", e.getMessage());
+            }
+        });
     }
 
     public boolean askCommit() {
@@ -171,9 +218,14 @@ public class LocalNode extends NodeBase {
             LogEntry preLogEntry = logEntities.get(logEntities.size() - 1);
             UpdateLogRequest updateLogRequest = UpdateLogRequest.newBuilder().setLogEntry(preLogEntry.toRpcEntry()).build();
             this.peers.parallelStream().forEach(peer -> {
-                if (peer.updateLog(updateLogRequest)) {
-                    count[0]++;
+                try {
+                    if (peer.updateLog(updateLogRequest)) {
+                        count[0]++;
+                    }
+                } catch (Exception e) {
+                    LOG.error("ask for commit failure: {}", e.getMessage());
                 }
+
             });
         }
         return count[0] > peers.size() / 2;
@@ -273,7 +325,7 @@ public class LocalNode extends NodeBase {
                 status = this.stateMachine.appendEntry(logEntry, value);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.warn("Updating failure: {}", e.getMessage());
             status = false;
         }
         return status;
@@ -321,6 +373,18 @@ public class LocalNode extends NodeBase {
         synchronized (this.stateMachine) {
             this.stateMachine.notifyAll();
         }
+    }
+
+    public void stop() {
+        this.server.stop();
+    }
+
+    public void pause() {
+
+    }
+
+    public void resume() {
+
     }
 
     private void initTimers() {
@@ -419,7 +483,7 @@ public class LocalNode extends NodeBase {
     }
 
     public static void main(String[] args) throws IOException {
-        Configuration configuration = ConfigurationHelper.load("config4.json");
+        Configuration configuration = ConfigurationHelper.load("config.json");
         StateMachine stateMachine = new StateMachine();
         LocalNode node = new LocalNode(configuration, stateMachine);
         stateMachine.bind(node);

@@ -72,7 +72,8 @@ public class StateMachine implements Runnable {
         } else {
             this.state.log.add(logEntry);
         }
-            LOG.debug("appendEntry {}", this.state.log);
+        this.node.settingsMap.put("log", this.state.log);
+        LOG.debug("appendEntry {}", this.state.log);
         return true;
     }
 
@@ -109,8 +110,6 @@ public class StateMachine implements Runnable {
 
     @Override
     public void run() {
-
-
         while (!suspend) {
             switch (state.role) {
                 case FOLLOWER:
@@ -120,7 +119,7 @@ public class StateMachine implements Runnable {
                         try {
                             this.wait();
                         } catch (InterruptedException e) {
-                            e.printStackTrace();
+                            LOG.warn(e.getMessage());
                         }
                     }
                     break;
@@ -142,7 +141,7 @@ public class StateMachine implements Runnable {
                         try {
                             this.wait();
                         } catch (InterruptedException e) {
-                            e.printStackTrace();
+                            LOG.warn(e.getMessage());
                         }
                     }
                     break;
