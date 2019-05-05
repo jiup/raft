@@ -12,6 +12,9 @@ service Greeter {
     // Sends a greeting
     //    rpc SayHello (HelloRequest) returns (HelloReply) {}
     //api for server
+    rpc GetId (GetIdRequest) returns (GetIdResponse) {
+
+    }
     rpc AskForVote (VoteRequest) returns (VoteReply) {
     }
     rpc UpdateLog (UpdateLogRequest) returns (UpdateLogReply) {
@@ -32,6 +35,19 @@ service Greeter {
     rpc Remove (RemoveRequest) returns (RemoveResponse) {
 
     }
+    rpc ContainsKey (ContainsRequest) returns (ContainsResponse) {
+    }
+
+    rpc ContainsValue (ContainsRequest) returns (ContainsResponse) {
+    }
+    rpc Values (ValuesRequest) returns (ValuesResponse) {
+    }
+    rpc Keys (KeysRequest) returns (KeysResponse) {
+    }
+    rpc Entries (EntriesRequest) returns (EntriesResponse) {
+
+    }
+
     //    rpc CommitMessage(VoteRequest) returns(VoteReply){}
 }
 
@@ -44,6 +60,47 @@ service Greeter {
 //message HelloReply {
 //    string message = 1;
 //}
+
+message EntriesRequest {
+
+}
+
+message EntriesResponse {
+    repeated DataEntry entry = 1;
+}
+
+message KeysRequest {
+
+}
+
+message KeysResponse {
+    repeated string key = 1;
+}
+
+message ValuesResponse {
+    repeated string value = 1;
+}
+
+message ValuesRequest {
+
+}
+
+message GetIdRequest {
+
+}
+
+message GetIdResponse {
+    string id = 1;
+}
+
+message ContainsRequest {
+    string content = 1;
+}
+
+message ContainsResponse {
+    bool status = 1;
+}
+
 message RemoveRequest {
     string key = 1;
 }

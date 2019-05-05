@@ -57,16 +57,44 @@ public class Client {
         return removeResponse.getStatus();
     }
 
+    public boolean containsKey(ContainsRequest containsRequest) {
+        ContainsResponse containsResponse = blockingStub.containsKey(containsRequest);
+        return containsResponse.getStatus();
+    }
+
+    public boolean containsValue(ContainsRequest containsRequest) {
+        ContainsResponse containsResponse = blockingStub.containsKey(containsRequest);
+        return containsResponse.getStatus();
+    }
+
+    public String getRemoteId(GetIdRequest getIdRequest) {
+        GetIdResponse getIdResponse = blockingStub.getId(getIdRequest);
+        return getIdResponse.getId();
+    }
+
+    public ValuesResponse getValues(ValuesRequest valuesRequest) {
+        return blockingStub.values(valuesRequest);
+    }
+
+    public KeysResponse getKeys(KeysRequest keysRequest) {
+        return blockingStub.keys(keysRequest);
+    }
+
+    public EntriesResponse getEntries(EntriesRequest entriesRequest) {
+        return blockingStub.entries(entriesRequest);
+    }
+
     public void shutdown() throws InterruptedException {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }
+
 
     public static void main(String... args) {
         String name = "zhangyu";
         Client client = new Client("127.0.0.1", 5000);
         VoteRequest voteRequest = VoteRequest.newBuilder().setPort(5000).setTerm(2).build();
         boolean b = client.askForVote(voteRequest);
-        System.out.println(b);
+//        System.out.println(b);
         try {
             client.shutdown();
         } catch (InterruptedException e) {
