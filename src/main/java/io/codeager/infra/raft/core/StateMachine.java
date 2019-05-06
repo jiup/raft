@@ -1,6 +1,7 @@
 package io.codeager.infra.raft.core;
 
 import io.codeager.infra.raft.Experimental;
+import io.codeager.infra.raft.conf.Configuration;
 import io.codeager.infra.raft.core.entity.LogEntry;
 import org.apache.commons.lang.builder.ToStringBuilder;
 import org.slf4j.Logger;
@@ -72,7 +73,9 @@ public class StateMachine implements Runnable {
         } else {
             this.state.log.add(logEntry);
         }
-        this.node.settingsMap.put("log", this.state.log);
+        if (this.node.getConfiguration().mode == Configuration.Mode.PROTECTED) {
+            this.node.settingsMap.put("log", this.state.log);
+        }
         LOG.debug("appendEntry {}", this.state.log);
         return true;
     }

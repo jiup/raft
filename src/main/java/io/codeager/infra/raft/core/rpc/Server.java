@@ -72,6 +72,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void appendLog(UpdateLogRequest request, StreamObserver<UpdateLogReply> responseObserver) {
+        node.resetWaitTimer();
         if (request.hasEntry()) {
             this.node.appendEntry(LogEntry.of(request.getLogEntry()), request.getEntry().getValue().getValue());
         } else {
@@ -85,6 +86,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void store(StoreRequest request, StreamObserver<StoreResponse> responseObserver) {
+        node.resetWaitTimer();
         StoreResponse storeResponse;
         boolean status;
         if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
@@ -100,10 +102,11 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
+        node.resetWaitTimer();
         String key = request.getKey();
         GetResponse getResponse;
         // just find the key in self
-        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+        if (true || this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
             String value = this.node.get(key);
             if (value == null) {
                 getResponse = GetResponse.newBuilder().build();
@@ -124,8 +127,9 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void size(SizeRequest request, StreamObserver<SizeResponse> responseObserver) {
+        node.resetWaitTimer();
         SizeResponse sizeResponse;
-        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+        if (true || this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
             int size = this.node.size();
             sizeResponse = SizeResponse.newBuilder().setSize(size).build();
         } else {
@@ -139,6 +143,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void remove(RemoveRequest request, StreamObserver<RemoveResponse> responseObserver) {
+        node.resetWaitTimer();
         RemoveResponse removeResponse;
         if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
             boolean status = this.node.remove(request.getKey());
@@ -153,6 +158,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void containsKey(ContainsRequest request, StreamObserver<ContainsResponse> responseObserver) {
+        node.resetWaitTimer();
         boolean status;
         if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
             status = this.node.containsKey(request.getContent());
@@ -166,6 +172,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void containsValue(ContainsRequest request, StreamObserver<ContainsResponse> responseObserver) {
+        node.resetWaitTimer();
         boolean status;
         if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
             status = this.node.containsValue(request.getContent());
@@ -179,9 +186,10 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void values(ValuesRequest request, StreamObserver<ValuesResponse> responseObserver) {
+        node.resetWaitTimer();
         Collection<String> values;
         ValuesResponse valuesResponse;
-        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+        if (true || this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
             values = this.node.getValues();
             ValuesResponse.Builder builder = ValuesResponse.newBuilder();
             int i = 0;
@@ -198,9 +206,10 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void keys(KeysRequest request, StreamObserver<KeysResponse> responseObserver) {
+        node.resetWaitTimer();
         Collection<String> keys;
         KeysResponse keysResponse;
-        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+        if (true || this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
             keys = this.node.getKeys();
             KeysResponse.Builder builder = KeysResponse.newBuilder();
             int i = 0;
@@ -217,9 +226,10 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void entries(EntriesRequest request, StreamObserver<EntriesResponse> responseObserver) {
+        node.resetWaitTimer();
         Collection<Map.Entry<String, String>> Entries;
         EntriesResponse entriesResponse;
-        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+        if (true || this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
             Entries = this.node.getEntries();
             EntriesResponse.Builder builder = EntriesResponse.newBuilder();
             int i = 0;
