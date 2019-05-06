@@ -37,8 +37,8 @@ public class Server extends GreeterGrpc.GreeterImplBase {
 
     @Override
     public void askForVote(VoteRequest request, StreamObserver<VoteReply> responseObserver) {
-        node.resetWaitTimer();
         boolean status = this.node.handleVoteRequest(request.getTerm());
+//        node.resetWaitTimer();
         VoteReply voteReply = VoteReply.newBuilder().setStatus(status).build();
         responseObserver.onNext(voteReply);
         responseObserver.onCompleted();
@@ -160,7 +160,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
     public void containsKey(ContainsRequest request, StreamObserver<ContainsResponse> responseObserver) {
         node.resetWaitTimer();
         boolean status;
-        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+        if (true || this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
             status = this.node.containsKey(request.getContent());
         } else {
             status = this.node.getLeader().containsKey(request.getContent());
@@ -174,7 +174,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
     public void containsValue(ContainsRequest request, StreamObserver<ContainsResponse> responseObserver) {
         node.resetWaitTimer();
         boolean status;
-        if (this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
+        if (true || this.node.getStateMachine().onState(StateMachine.Role.LEADER)) {
             status = this.node.containsValue(request.getContent());
         } else {
             status = this.node.getLeader().containsValue(request.getContent());
@@ -194,7 +194,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
             ValuesResponse.Builder builder = ValuesResponse.newBuilder();
             int i = 0;
             for (String value : values) {
-                builder.setValue(i++, value);
+                builder.addValue(value);
             }
             valuesResponse = builder.build();
         } else {
@@ -214,7 +214,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
             KeysResponse.Builder builder = KeysResponse.newBuilder();
             int i = 0;
             for (String value : keys) {
-                builder.setKey(i++, value);
+                builder.addKey(value);
             }
             keysResponse = builder.build();
         } else {
@@ -234,7 +234,7 @@ public class Server extends GreeterGrpc.GreeterImplBase {
             EntriesResponse.Builder builder = EntriesResponse.newBuilder();
             int i = 0;
             for (Map.Entry entry : Entries) {
-                builder.setEntry(i++, DataEntry.newBuilder().
+                builder.addEntry(DataEntry.newBuilder().
                         setKey(String.valueOf(entry.getKey())).
                         setValue(StringValue.of((String) entry.getValue())).build());
             }

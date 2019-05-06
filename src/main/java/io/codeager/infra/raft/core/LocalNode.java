@@ -11,7 +11,6 @@ import io.codeager.infra.raft.core.util.NodeTimer;
 import io.codeager.infra.raft.storage.KvEngine;
 import io.codeager.infra.raft.storage.RevocableMap;
 import io.codeager.infra.raft.storage.RevocableMapAdapter;
-import io.codeager.infra.raft.util.ConfigurationHelper;
 import io.grpc.vote.DataEntry;
 import io.grpc.vote.UpdateLogRequest;
 import io.grpc.vote.VoteRequest;
@@ -40,6 +39,7 @@ public class LocalNode extends NodeBase {
     private Configuration configuration;
     private Random random;
     private Server server;
+    private boolean canVote;
     private RemoteNode leader;
     private List<RemoteNode> peers;
     private NodeTimer voteTimer;
@@ -65,13 +65,13 @@ public class LocalNode extends NodeBase {
                 this.stop();
             }
         };
-        this.voteTimer = new NodeTimer(this, "voteTimer", random.nextInt(configuration.origin.voteTimeout)) {
+        this.voteTimer = new NodeTimer(this, "voteTimer", configuration.origin.voteTimeout) {
             @Override
             protected void onTrigger() {
                 this.node.checkVoteResult();
             }
         };
-        this.heartbeatTimer = new NodeTimer(this, "heartbeatTimer", random.nextInt(configuration.origin.heartbeatTimeout)) {
+        this.heartbeatTimer = new NodeTimer(this, "heartbeatTimer", configuration.origin.heartbeatTimeout) {
             protected void onTrigger() {
                 this.node.sendHeartbeat();
             }
@@ -98,6 +98,7 @@ public class LocalNode extends NodeBase {
 
         this.idSending = new HashSet<>();
         this.configuration = configuration;
+        this.canVote = true;
 
     }
 
@@ -106,8 +107,9 @@ public class LocalNode extends NodeBase {
     }
 
     public void resetWaitTimer() {
-        LOG.info("Get package from Leader, reset the WaitTimer");
-        this.waitTimer.reset(this.configuration.origin.heartbeatTimeout + 5000 + random.nextInt(5000)); // todo: read from configuration
+        this.canVote = false;
+        LOG.debug("Get package from Leader, reset the WaitTimer");
+        this.waitTimer.reset(this.configuration.origin.heartbeatTimeout + 10000 + random.nextInt(5000)); // todo: read from configuration
     }
 
     public void initPeersId() {
@@ -175,6 +177,7 @@ public class LocalNode extends NodeBase {
     }
 
     public boolean containsValue(String value) {
+        LOG.info("finding if contains value : {}", value);
         return this.internalMap.containsValue(value);
     }
 
@@ -277,8 +280,11 @@ public class LocalNode extends NodeBase {
     }
 
     public boolean handleVoteRequest(int voteTerm) {
+        if (!this.canVote)
+            return false;
         LOG.info("vote term is {}, my term is {}", voteTerm, this.stateMachine.getState().term);
         if (voteTerm >= this.stateMachine.getState().term) {
+//            this.stateMachine.getState().term++;
             synchronized (this.stateMachine) {
                 this.stateMachine.getState().role = StateMachine.Role.FOLLOWER;
             }
@@ -314,7 +320,14 @@ public class LocalNode extends NodeBase {
             }
         }
         if (logEntry.getIndex() < this.stateMachine.getState().getLog().size()) {
-            return this.stateMachine.getState().getLog().get(logEntry.getIndex()).getTerm() == logEntry.getTerm();
+            LogEntry cur = this.stateMachine.getState().getLog().get(logEntry.getIndex());
+            if (cur.equals(logEntry)) {
+                return true;
+            } else {
+                LOG.warn("request log is {}, my own log is {}", logEntry.toString(), cur.toString());
+                return false;
+            }
+//            return this.stateMachine.getState().getLog().get(logEntry.getIndex()).equals(logEntry);
         }
         return false;
     }
@@ -375,6 +388,7 @@ public class LocalNode extends NodeBase {
     }
 
     private void becomeCandidate() {
+        this.canVote = true;
         this.stateMachine.setRole(StateMachine.Role.CANDIDATE);
         synchronized (this.stateMachine) {
             this.stateMachine.notifyAll();
@@ -456,7 +470,7 @@ public class LocalNode extends NodeBase {
                     updateLogRequestBuilder.setEntry(dataEntry);
                     peer.appendEntry(updateLogRequestBuilder.build());
                 }
-                LOG.debug("sent heartbeat to {}", this.peer.getId());
+                LOG.info("sent heartbeat to {}", this.peer.getId());
             } catch (Exception e) {
                 LOG.warn("cannot send heartbeat to node@{}", this.peer.getEndpoint());
             } finally {
@@ -468,10 +482,6 @@ public class LocalNode extends NodeBase {
     }
 
     public static void main(String[] args) throws IOException {
-        Configuration configuration = ConfigurationHelper.load("config4.json");
-        StateMachine stateMachine = new StateMachine();
-        LocalNode node = new LocalNode(configuration, stateMachine);
-        stateMachine.bind(node);
-        node.start();
+//
     }
 }
