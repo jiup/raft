@@ -1,0 +1,35 @@
+{
+  "max_client": 1,
+  "mode": "debug",
+  "origin": {
+    "id": "3",
+    "name": "node-tw903b9",
+    "endpoint": {
+      "host": "127.0.0.1",
+      "port": 5002
+    },
+    "wait_timeout": 40000,
+    "vote_timeout": 10000,
+    "heartbeat_timeout": 5000
+  },
+  "registry": [
+    "127.0.0.1:5001",
+    "127.0.0.1:5000",
+    "127.0.0.1:5003",
+    "127.0.0.1:5004"
+  ],
+  "node_observer": {
+    "max_client": 1,
+    "endpoint": {
+      "host": "0.0.0.0",
+      "port": 36507
+    }
+  },
+  "logging": {
+    "out_path": "/path/to/raft.out",
+    "err_path": "/path/to/raft.err"
+  },
+  "binding": {
+    "cli": "io.codeager.infra.raft.conf.Configuration"
+  }
+}
