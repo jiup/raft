@@ -8,20 +8,22 @@ import io.codeager.infra.raft.core.entity.LogEntry;
 import io.codeager.infra.raft.core.rpc.Client;
 import io.codeager.infra.raft.core.rpc.Server;
 import io.codeager.infra.raft.core.util.NodeTimer;
+import io.codeager.infra.raft.storage.KvEngine;
 import io.codeager.infra.raft.storage.RevocableMap;
 import io.codeager.infra.raft.storage.RevocableMapAdapter;
-import io.codeager.infra.raft.util.ConfigurationHelper;
 import io.grpc.vote.DataEntry;
 import io.grpc.vote.UpdateLogRequest;
 import io.grpc.vote.VoteRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import static io.codeager.infra.raft.conf.Configuration.Mode.PROTECTED;
 
 
 /**
@@ -31,11 +33,13 @@ import java.util.concurrent.Executors;
 public class LocalNode extends NodeBase {
     public static final Logger LOG = LoggerFactory.getLogger(LocalNode.class);
 
+    RevocableMap<String, Object> settingsMap;
     RevocableMap<String, String> internalMap;
     private final StateMachine stateMachine;
     private Configuration configuration;
     private Random random;
     private Server server;
+    private boolean canVote;
     private RemoteNode leader;
     private List<RemoteNode> peers;
     private NodeTimer voteTimer;
@@ -61,25 +65,51 @@ public class LocalNode extends NodeBase {
                 this.stop();
             }
         };
-        this.voteTimer = new NodeTimer(this, "voteTimer", random.nextInt(configuration.origin.voteTimeout)) {
+        this.voteTimer = new NodeTimer(this, "voteTimer", configuration.origin.voteTimeout) {
             @Override
             protected void onTrigger() {
                 this.node.checkVoteResult();
             }
         };
-        this.heartbeatTimer = new NodeTimer(this, "heartbeatTimer", random.nextInt(configuration.origin.heartbeatTimeout)) {
+        this.heartbeatTimer = new NodeTimer(this, "heartbeatTimer", configuration.origin.heartbeatTimeout) {
             protected void onTrigger() {
                 this.node.sendHeartbeat();
             }
         };
-        this.internalMap = new RevocableMapAdapter<>(new ConcurrentHashMap<String, byte[]>());
+
+
+        if (configuration.mode == PROTECTED) {
+
+            this.settingsMap = new RevocableMapAdapter<>(new KvEngine(new File("logs")).map("default"));
+            LOG.info("Start in protected mode");
+            //todo load database
+            File file = new File("DBfile");
+            if (file.exists()) {
+                this.internalMap = new RevocableMapAdapter<>(new KvEngine(file).map("default"));
+                loadLog();
+            } else {
+                this.internalMap = new RevocableMapAdapter<>(new KvEngine().map("default"));
+            }
+
+        } else {
+            LOG.info("Start in debug mode");
+            this.internalMap = new RevocableMapAdapter<>(new KvEngine().map("default"));
+        }
+
         this.idSending = new HashSet<>();
         this.configuration = configuration;
+        this.canVote = true;
+
+    }
+
+    public Configuration getConfiguration() {
+        return configuration;
     }
 
     public void resetWaitTimer() {
+        this.canVote = false;
         LOG.debug("Get package from Leader, reset the WaitTimer");
-        this.waitTimer.reset(this.configuration.origin.heartbeatTimeout + 1000 + random.nextInt(5000)); // todo: read from configuration
+        this.waitTimer.reset(this.configuration.origin.heartbeatTimeout + 10000 + random.nextInt(5000)); // todo: read from configuration
     }
 
     public void initPeersId() {
@@ -115,12 +145,30 @@ public class LocalNode extends NodeBase {
             UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
                     .setLogEntry(newLogEntry.toRpcEntry())
                     .setEntry(dataEntry).build();
-            this.peers.parallelStream().forEach(peer -> peer.appendEntry(appendLogRequest));
+            this.peers.parallelStream().forEach(
+                    peer -> {
+                        try {
+                            peer.appendEntry(appendLogRequest);
+                        } catch (Exception e) {
+                            LOG.error("storing, append entry to node:{} failure: {}", peer.getId(), e.getMessage());
+                        }
+                    }
+            );
             this.appendEntry(newLogEntry, value);
             return true;
 
         }
         return false;
+    }
+
+    public void loadLog() {
+        List<LogEntry> log = (List<LogEntry>) settingsMap.get("logs");
+        if (!log.isEmpty()) {
+            this.stateMachine.getState().setLog(log);
+            this.stateMachine.getState().index = log.get(log.size() - 1).getIndex();
+            this.stateMachine.getState().term = log.get(log.size() - 1).getTerm();
+            LOG.info("Load log size : {}, index: {}, index: {}", log.size(), this.stateMachine.getState().index, this.stateMachine.getState().term);
+        }
     }
 
 
@@ -129,6 +177,7 @@ public class LocalNode extends NodeBase {
     }
 
     public boolean containsValue(String value) {
+        LOG.info("finding if contains value : {}", value);
         return this.internalMap.containsValue(value);
     }
 
@@ -141,7 +190,12 @@ public class LocalNode extends NodeBase {
             UpdateLogRequest appendLogRequest = UpdateLogRequest.newBuilder()
                     .setLogEntry(newLogEntry.toRpcEntry()).build();
             this.peers.parallelStream().forEach(peer -> {
-                peer.appendEntry(appendLogRequest);
+                try {
+                    peer.appendEntry(appendLogRequest);
+                } catch (Exception e) {
+                    LOG.error("removing, append entry to node:{} failure: {}", peer.getId(), e.getMessage());
+                }
+
             });
             return this.appendEntry(newLogEntry, null);
         }
@@ -151,16 +205,16 @@ public class LocalNode extends NodeBase {
     void askForVote() {
         LOG.info("ask for vote");
         VoteRequest voteRequest = VoteRequest.newBuilder().setTerm(this.stateMachine.getState().term).build();
-        try {
-            final StateMachine stateMachine = this.stateMachine;
-            this.peers.parallelStream().forEach(peer -> {
+        final StateMachine stateMachine = this.stateMachine;
+        this.peers.parallelStream().forEach(peer -> {
+            try {
                 if (peer.askForVote(voteRequest)) {
                     stateMachine.getState().votes++;
                 }
-            });
-        } catch (Exception e) {
-            LOG.error("ask vote failure: {}", e.getMessage());
-        }
+            } catch (Exception e) {
+                LOG.error("ask vote failure: {}", e.getMessage());
+            }
+        });
     }
 
     public boolean askCommit() {
@@ -171,9 +225,14 @@ public class LocalNode extends NodeBase {
             LogEntry preLogEntry = logEntities.get(logEntities.size() - 1);
             UpdateLogRequest updateLogRequest = UpdateLogRequest.newBuilder().setLogEntry(preLogEntry.toRpcEntry()).build();
             this.peers.parallelStream().forEach(peer -> {
-                if (peer.updateLog(updateLogRequest)) {
-                    count[0]++;
+                try {
+                    if (peer.updateLog(updateLogRequest)) {
+                        count[0]++;
+                    }
+                } catch (Exception e) {
+                    LOG.error("ask for commit failure: {}", e.getMessage());
                 }
+
             });
         }
         return count[0] > peers.size() / 2;
@@ -209,17 +268,23 @@ public class LocalNode extends NodeBase {
     }
 
     public void recover(LogEntry logEntry) {
-        LOG.info("Begin to recover log");
+
         int curIndex = logEntry.getIndex() + 1;
         List<LogEntry> selfLogs = this.stateMachine.getState().getLog();
+        if (curIndex < selfLogs.size()) {
+            LOG.info("Begin to recover log");
+        }
         for (int i = curIndex; i < selfLogs.size(); i++) {
             this.internalMap.revoke(selfLogs.get(i).getKey());
         }
     }
 
     public boolean handleVoteRequest(int voteTerm) {
+        if (!this.canVote)
+            return false;
         LOG.info("vote term is {}, my term is {}", voteTerm, this.stateMachine.getState().term);
         if (voteTerm >= this.stateMachine.getState().term) {
+//            this.stateMachine.getState().term++;
             synchronized (this.stateMachine) {
                 this.stateMachine.getState().role = StateMachine.Role.FOLLOWER;
             }
@@ -248,21 +313,27 @@ public class LocalNode extends NodeBase {
     }
 
     public boolean checkLog(LogEntry logEntry, String id) {
-        LOG.info("checking if the log is update to leader...");
-        if (logEntry.getIndex() < this.stateMachine.getState().getLog().size()) {
-            for (RemoteNode peer : peers) {
-                if (peer.getId().equals(id)) {
-                    this.leader = peer;
-                }
+        LOG.info("checking if the log is update to leader-{}...", id);
+        for (RemoteNode peer : peers) {
+            if (peer.getId().equals(id)) {
+                this.leader = peer;
             }
-
-            return this.stateMachine.getState().getLog().get(logEntry.getIndex()).getTerm() == logEntry.getTerm();
+        }
+        if (logEntry.getIndex() < this.stateMachine.getState().getLog().size()) {
+            LogEntry cur = this.stateMachine.getState().getLog().get(logEntry.getIndex());
+            if (cur.equals(logEntry)) {
+                return true;
+            } else {
+                LOG.warn("request log is {}, my own log is {}", logEntry.toString(), cur.toString());
+                return false;
+            }
+//            return this.stateMachine.getState().getLog().get(logEntry.getIndex()).equals(logEntry);
         }
         return false;
     }
 
     public boolean appendEntry(LogEntry logEntry, String value) {
-        LOG.info("Updating log with leader...");
+        LOG.info("Updating logs {}:{}", logEntry.getKey(), value);
         boolean status;
         try {
             if (value == null) {
@@ -273,7 +344,7 @@ public class LocalNode extends NodeBase {
                 status = this.stateMachine.appendEntry(logEntry, value);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.warn("Updating failure: {}", e.getMessage());
             status = false;
         }
         return status;
@@ -317,31 +388,23 @@ public class LocalNode extends NodeBase {
     }
 
     private void becomeCandidate() {
+        this.canVote = true;
         this.stateMachine.setRole(StateMachine.Role.CANDIDATE);
         synchronized (this.stateMachine) {
             this.stateMachine.notifyAll();
         }
     }
 
-    private void initTimers() {
-        this.waitTimer = new NodeTimer(this, "waitTimer", configuration.origin.waitTimeout) {
-            protected void onTrigger() {
-                this.node.becomeCandidate();
-                this.stop();
-            }
-        };
-        this.voteTimer = new NodeTimer(this, "voteTimer", random.nextInt(configuration.origin.voteTimeout)) {
-            @Override
-            protected void onTrigger() {
-                this.node.checkVoteResult();
-            }
-        };
-        this.heartbeatTimer = new NodeTimer(this, "heartbeatTimer", random.nextInt(configuration.origin.heartbeatTimeout)) {
-            protected void onTrigger() {
-                this.node.sendHeartbeat();
-            }
-        };
-        this.internalMap = new RevocableMapAdapter<>(new ConcurrentHashMap<String, byte[]>());
+    public void stop() {
+        this.server.stop();
+    }
+
+    public void pause() {
+
+    }
+
+    public void resume() {
+
     }
 
     class ServerContainer implements Runnable {
@@ -386,9 +449,9 @@ public class LocalNode extends NodeBase {
             LOG.debug("before send heartbeat to {}", this.peer.getId());
             try {
                 int index = log.size() - 1;
+                this.localNode.stateMachine.getState().index = index;
                 peer.setIndex(index);
                 UpdateLogRequest.Builder updateLogRequestBuilder = UpdateLogRequest.newBuilder().setId(id);
-
                 if (index >= 0) {
                     updateLogRequestBuilder.setLogEntry(log.get(index).toRpcEntry());
                 }
@@ -407,7 +470,7 @@ public class LocalNode extends NodeBase {
                     updateLogRequestBuilder.setEntry(dataEntry);
                     peer.appendEntry(updateLogRequestBuilder.build());
                 }
-                LOG.debug("sent heartbeat to {}", this.peer.getId());
+                LOG.info("sent heartbeat to {}", this.peer.getId());
             } catch (Exception e) {
                 LOG.warn("cannot send heartbeat to node@{}", this.peer.getEndpoint());
             } finally {
@@ -419,10 +482,6 @@ public class LocalNode extends NodeBase {
     }
 
     public static void main(String[] args) throws IOException {
-        Configuration configuration = ConfigurationHelper.load("config4.json");
-        StateMachine stateMachine = new StateMachine();
-        LocalNode node = new LocalNode(configuration, stateMachine);
-        stateMachine.bind(node);
-        node.start();
+//
     }
 }

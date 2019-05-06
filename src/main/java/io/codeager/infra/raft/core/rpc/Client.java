@@ -63,7 +63,7 @@ public class Client {
     }
 
     public boolean containsValue(ContainsRequest containsRequest) {
-        ContainsResponse containsResponse = blockingStub.containsKey(containsRequest);
+        ContainsResponse containsResponse = blockingStub.containsValue(containsRequest);
         return containsResponse.getStatus();
     }
 

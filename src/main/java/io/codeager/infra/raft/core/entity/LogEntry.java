@@ -3,6 +3,8 @@ package io.codeager.infra.raft.core.entity;
 
 import com.google.protobuf.StringValue;
 
+import java.util.Objects;
+
 public class LogEntry {
     private int index;
     private int term;
@@ -33,6 +35,32 @@ public class LogEntry {
                 .setVersion(this.version);
         return this.value != null ? builder.setValue(StringValue.of(this.value)).build() : builder.build();
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LogEntry logEntry = (LogEntry) o;
+        return index == logEntry.index &&
+                term == logEntry.term &&
+                Objects.equals(key, logEntry.key);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(index, term, key);
+    }
+
+    @Override
+    public String toString() {
+        return "LogEntry{" +
+                "index=" + index +
+                ", term=" + term +
+                ", key='" + key + '\'' +
+                ", value='" + value + '\'' +
+                '}';
+    }
+
 
     public String getValue() {
         return value;
